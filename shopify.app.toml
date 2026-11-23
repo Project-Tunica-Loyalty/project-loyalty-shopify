@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "7346dc5e7373a5489b073afa7bb14ffd"
-name = "project-loyalty"
+name = "reglrs-loyalty-app"
 application_url = "https://shopify.reglrs.ai"
 embedded = true
 
@@ -63,5 +63,4 @@ subpath = "loyalty"
 prefix = "apps"
 
 [build]
-include_config_on_deploy = true
 automatically_update_urls_on_dev = true
