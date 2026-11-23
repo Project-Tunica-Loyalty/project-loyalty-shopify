@@ -1,6 +1,6 @@
 # Project Loyalty for Shopify
 
-Dedicated custom app for one brand, built on React Router and the shared Project Loyalty backend. See [setup, behavior and launch gates](docs/shopify-loyalty.md) and [.env.example](.env.example). The local backend runs at `http://127.0.0.1:4002/api`.
+Dedicated custom app for one brand, built on React Router and the shared Project Loyalty backend. For paid customer installs on a web server, use the [container deployment runbook](docs/container-deployment.md). See also [behavior and launch gates](docs/shopify-loyalty.md) and [.env.example](.env.example).
 
 The scaffold documentation below is retained for framework maintenance.
 
