@@ -2,7 +2,7 @@
 
 client_id = "7346dc5e7373a5489b073afa7bb14ffd"
 name = "project-loyalty"
-application_url = "https://example.com"
+application_url = "https://shopify.reglrs.ai"
 embedded = true
 
 [access_scopes]
@@ -55,7 +55,7 @@ api_version = "2026-10"
   query_filter = "product.status:'ACTIVE'"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://shopify.reglrs.ai/auth/callback" ]
 
 [app_proxy]
 url = "/apps/loyalty"
