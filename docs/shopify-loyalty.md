@@ -1,15 +1,17 @@
 # Project Loyalty Shopify custom app
 
-This app serves one configured brand and explicitly allowed stores. Wallets, point lots, reservations, conversions and redemptions use Project Loyalty's existing services. It does not create a separate Shopify wallet or enroll customers automatically.
+One Shopify app can serve multiple brands. A one-time connection token issued by a brand owner binds each shop to one brand and store. Wallets, point lots, reservations, conversions and redemptions use Project Loyalty's existing services. It does not create a separate Shopify wallet or enroll customers automatically.
 
 ## Local configuration
 
 1. Configure this app from `.env.example`. The local backend is `http://127.0.0.1:4002/api`.
-2. In the backend environment, set `PORT=4002`, `SHOPIFY_BRAND_ID`, `SHOPIFY_ALLOWED_SHOPS=reglrs.myshopify.com`, `SHOPIFY_TERMS_URL`, `SHOPIFY_PRIVACY_URL`, and `SHOPIFY_TERMS_VERSION`. Use the real brand UUID and approved HTTPS policy pages. Keep a version stable once consent has been recorded.
+2. In the backend environment, set `PORT=4002`, the shared `SHOPIFY_LOYALTY_SERVICE_SECRET`, and the public `SHOPIFY_LOYALTY_APP_URL`. The brand owner's connection token selects the brand and store; each brand owner configures their approved HTTPS terms URL, privacy URL and terms version after connecting.
 3. Set the same `SHOPIFY_LOYALTY_SERVICE_SECRET` in both applications. Generate a separate `LOYALTY_ADMIN_SESSION_KEY` for this app. Each must be 32 random bytes encoded as 64 hex characters: `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`.
 4. Review pending migrations in both projects. The app's tables belong in `shopify_sessions`; backend tables belong in its existing schema. Run `npm run setup` here and the backend's Prisma migrate-deploy command after checking migration status. Do not use `db push` or reset an existing database.
-5. Restart the backend after environment changes. Run `shopify app dev`, sign in to an existing Project Loyalty brand account in Shopify Admin, then connect using a store connection token issued by the brand owner. The operator's backend permissions remain authoritative; signing into Shopify alone does not grant brand access.
+5. Restart the backend after environment changes. Run `shopify app dev`, connect using a store connection token issued by the brand owner, then sign in to that Project Loyalty brand account for management. The operator's backend permissions remain authoritative; signing into Shopify alone does not grant brand access.
 6. Add the Project Loyalty theme block to the storefront and sign in as a Shopify customer. New members verify their phone and accept membership terms. Marketing SMS consent is optional. Existing profiles and previously recorded consent are preserved.
+
+Brand owners can save their HTTPS terms and privacy URLs and terms version in the connected shop's settings page or through `PUT /api/brands/:brandId/shopify/policy`. A shop can connect without a policy, but customer signup remains unavailable until the policy is configured. The signed shop context has null brand and policy fields before connection.
 
 Set backend `SHOPIFY_LOYALTY_APP_URL` to the publicly reachable app URL for scheduled reconciliation. Local tunnels change; update this setting after starting a new tunnel. The backend invokes signed `/webhooks?reconcile=1` every 15 minutes, re-fetches orders updated in the preceding 48 hours and retries code deactivation. It also releases expired reservations on its existing schedule. Missed events outside that window require explicit order replay through the signed event adapter; this release does not bulk-import history.
 
@@ -33,7 +35,7 @@ Custom-distribution apps using Shopify Functions require Shopify Plus in product
 
 Request the necessary protected customer-data access in Shopify's developer dashboard, including access needed for order/customer webhooks and customer-restricted discounts. Deploy the configured scopes (`write_app_proxy` included) and have the store approve changes. Keeping these webhooks requires approval; removing subscriptions would leave earning/refunds incomplete.
 
-Before launch, record a real development-store journey: install → brand sign-in/connect → theme block → new signup and existing-account link → paid/full fulfillment → redeem → checkout → payment confirmation → refund/cancel → uninstall/reinstall. Exercise denied brand access, blocked members, concurrent/insufficient balances, consent preservation, cross-channel balances and rule changes, privacy requests, expiry and lost issuance responses. Automated tests supplement this journey; they do not establish live checkout compatibility.
+Before launch, record a real development-store journey: install → connect with a brand token → brand sign-in → configure policy → theme block → new signup and existing-account link → paid/full fulfillment → redeem → checkout → payment confirmation → refund/cancel → uninstall/reinstall. Exercise denied brand access, blocked members, concurrent/insufficient balances, consent preservation, cross-channel balances and rule changes, privacy requests, expiry and lost issuance responses. Automated tests supplement this journey; they do not establish live checkout compatibility.
 
 ## Checks
 

@@ -2,13 +2,13 @@ import { authenticate } from "../shopify.server";
 import { loyaltyApi } from "./loyalty-api.server";
 
 export type LoyaltyConnection = {
-  brandId: string;
-  brandName: string;
+  brandId: string | null;
+  brandName: string | null;
   storeId: string | null;
   connected: boolean;
   termsUrl: string | null;
   privacyUrl: string | null;
-  termsVersion: string;
+  termsVersion: string | null;
 };
 export async function merchantContext(request: Request) {
   const auth = await authenticate.admin(request);

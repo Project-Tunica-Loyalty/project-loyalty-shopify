@@ -123,7 +123,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     } catch (err) {
       error = message(err);
     }
-  } else if (tokens) {
+  } else if (tokens && ctx.connection.brandId) {
     try {
       program = await brandApi<Program>(
         ctx.identity,
@@ -208,6 +208,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const form = await request.formData();
   const intent = String(form.get("intent") || "");
   try {
+    if (intent === "connect") {
+      if (ctx.connection.connected)
+        throw new Error("This shop is already connected");
+      if (!ctx.compatible)
+        throw new Error(
+          "This custom app requires a compatible Shopify Plus store for product rewards",
+        );
+      await loyaltyApi("POST", "/integrations/shopify/installations/connect", {
+        token: String(form.get("token") || "").trim(),
+        shopId: ctx.shop.id,
+        shopDomain: ctx.shop.myshopifyDomain,
+        currency: ctx.shop.currencyCode,
+      });
+      return data({ success: "Shop connected to the brand" }, { headers });
+    }
     if (intent === "logout") {
       const tokens = await readBrandSession(ctx.identity);
       if (tokens && !tokens.pendingMfa)
@@ -218,6 +233,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return data({ success: "Signed out of Project Loyalty" }, { headers });
     }
     if (intent === "login" || intent === "verify-mfa") {
+      if (!ctx.connection.brandId) throw new Error("Connect this shop first");
       const previous = await readBrandSession(ctx.identity);
       if (intent === "verify-mfa" && !previous?.pendingMfa)
         throw new Error("Start sign-in again");
@@ -270,27 +286,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       );
       return data({ success: "A new verification code was sent" }, { headers });
     }
+    if (!ctx.connection.brandId) throw new Error("Connect this shop first");
     const brandPath = `/brands/${ctx.connection.brandId}`;
     const current = await brandApi<Program>(
       ctx.identity,
       "GET",
       `${brandPath}/loyalty-program`,
     );
-    if (intent === "connect") {
-      if (!ctx.compatible)
-        throw new Error(
-          "This custom app requires a compatible Shopify Plus store for product rewards",
-        );
-      await loyaltyApi("POST", "/integrations/shopify/installations/connect", {
-        token: String(form.get("token") || "").trim(),
-        shopId: ctx.shop.id,
-        shopDomain: ctx.shop.myshopifyDomain,
-        currency: ctx.shop.currencyCode,
-      });
-      return data({ success: "Shop connected to the brand" }, { headers });
-    }
     if (!ctx.connection.connected)
       throw new Error("Connect the shop before managing loyalty");
+    if (intent === "save-policy") {
+      await brandApi(ctx.identity, "PUT", `${brandPath}/shopify/policy`, {
+        termsUrl: String(form.get("termsUrl") || "").trim(),
+        privacyUrl: String(form.get("privacyUrl") || "").trim(),
+        termsVersion: String(form.get("termsVersion") || "").trim(),
+      });
+      return data({ success: "Brand policy saved" }, { headers });
+    }
     if (intent === "reward") {
       if (!ctx.compatible)
         throw new Error(
@@ -598,7 +610,7 @@ export default function LoyaltyPage() {
   return (
     <s-page heading={heading}>
       <style>{`.loyalty-form{display:grid;gap:16px;max-width:850px}.loyalty-form label{display:grid;gap:6px}.loyalty-form input:not([type=checkbox]),.loyalty-form select{padding:10px;border:1px solid #999;border-radius:8px;max-width:100%;box-sizing:border-box}.loyalty-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}.loyalty-form fieldset{border:1px solid #ddd;padding:16px;border-radius:8px;display:grid;gap:12px}.loyalty-form button{padding:10px 14px;cursor:pointer}.loyalty-details>div{padding:8px 0;border-bottom:1px solid #eee}.loyalty-details dt{text-transform:capitalize;font-weight:600}.loyalty-details dd{margin:4px 0}.loyalty-table{width:100%;border-collapse:collapse}.loyalty-table th,.loyalty-table td{text-align:left;padding:12px;border-bottom:1px solid #ddd}.loyalty-nav{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px}`}</style>
-      <s-section heading={loaded.connection.brandName}>
+      <s-section heading={loaded.connection.brandName || "Connect your brand"}>
         <s-paragraph>
           {loaded.shop.myshopifyDomain} · {loaded.shop.currencyCode} ·{" "}
           {loaded.compatible
@@ -626,7 +638,22 @@ export default function LoyaltyPage() {
           {String(info.success)}
         </s-banner>
       )}
-      {!loaded.signedIn ? (
+      {!loaded.connection.connected ? (
+        <s-section heading="Connect this shop">
+          <s-paragraph>
+            Enter the one-time connection token issued by a Project Loyalty
+            brand owner for this store.
+          </s-paragraph>
+          <Form method="post" className="loyalty-form">
+            <input name="intent" type="hidden" value="connect" />
+            <label>
+              Connection token
+              <input name="token" required autoComplete="off" />
+            </label>
+            <button disabled={busy || !loaded.compatible}>Connect shop</button>
+          </Form>
+        </s-section>
+      ) : !loaded.signedIn ? (
         <s-section heading="Sign in to your brand account">
           <s-paragraph>
             Use your existing Project Loyalty account. Your brand permissions
@@ -695,12 +722,6 @@ export default function LoyaltyPage() {
               </button>
             </Form>
           </s-section>
-          {!loaded.connection.connected && (
-            <s-banner heading="Connect this shop">
-              Open Connection settings and enter the connection token issued by
-              the brand owner.
-            </s-banner>
-          )}
           {loaded.view === "settings" && (
             <s-section heading="Brand connection">
               <s-paragraph>
@@ -708,18 +729,25 @@ export default function LoyaltyPage() {
                   ? "This shop is connected to its brand and shares the brand wallet."
                   : "Generate a store connection token in Project Loyalty, then paste it below."}
               </s-paragraph>
-              {!loaded.connection.connected && (
-                <Form method="post" className="loyalty-form">
-                  <input name="intent" type="hidden" value="connect" />
-                  <label>
-                    Connection token
-                    <input name="token" required autoComplete="off" />
-                  </label>
-                  <button disabled={busy || !loaded.compatible}>
-                    Connect shop
-                  </button>
-                </Form>
-              )}
+              <Form method="post" className="loyalty-form">
+                <input type="hidden" name="intent" value="save-policy" />
+                <label>
+                  Terms URL
+                  <input name="termsUrl" type="url" required
+                    defaultValue={loaded.connection.termsUrl || ""} />
+                </label>
+                <label>
+                  Privacy URL
+                  <input name="privacyUrl" type="url" required
+                    defaultValue={loaded.connection.privacyUrl || ""} />
+                </label>
+                <label>
+                  Terms version
+                  <input name="termsVersion" required maxLength={50}
+                    defaultValue={loaded.connection.termsVersion || ""} />
+                </label>
+                <button disabled={busy}>Save brand policy</button>
+              </Form>
               <s-paragraph>
                 Customer signup requires the brand’s current terms and privacy
                 links to be configured on the backend. The storefront theme must
