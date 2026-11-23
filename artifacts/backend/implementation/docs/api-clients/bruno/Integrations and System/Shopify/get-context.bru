@@ -1,0 +1,21 @@
+meta {
+  name: Read configured shop context
+  type: http
+  seq: 9
+}
+get {
+  url: {{base_url}}/integrations/shopify/context?shopId={{shopify_shop_id}}&shopDomain={{shopify_shop_domain}}
+  body: none
+  auth: none
+}
+headers {
+  Content-Type: application/json
+  x-loyalty-timestamp: {{shopify_service_timestamp}}
+  x-loyalty-signature: {{shopify_service_signature}}
+}
+tests {
+  test('Expected response', () => { expect(res.getStatus()).to.equal(200); expect(res.getBody().brandId).to.be.a('string'); });
+}
+docs {
+  Server-to-server HMAC only. Sign the expanded request path including /api and query string, timestamp, uppercase method and EXACT body bytes separated by newlines. See docs/integrations/shopify-loyalty.md. Never put this signing secret in storefront JavaScript. Refuses unlisted shops or a different brand installation.
+}

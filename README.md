@@ -1,4 +1,8 @@
-# Shopify App Template - React Router
+# Project Loyalty for Shopify
+
+Dedicated custom app for one brand, built on React Router and the shared Project Loyalty backend. See [setup, behavior and launch gates](docs/shopify-loyalty.md) and [.env.example](.env.example). The local backend runs at `http://127.0.0.1:4002/api`.
+
+The scaffold documentation below is retained for framework maintenance.
 
 This is a template for building a [Shopify app](https://shopify.dev/docs/apps/getting-started) using [React Router](https://reactrouter.com/). It was forked from the [Shopify Remix app template](https://github.com/Shopify/shopify-app-template-remix) and converted to React Router.
 

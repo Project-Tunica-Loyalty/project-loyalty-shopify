@@ -1,0 +1,29 @@
+meta {
+  name: Signup send OTP
+  type: http
+  seq: 10
+}
+post {
+  url: {{base_url}}/integrations/shopify/customers/signup/otp/send
+  body: json
+  auth: none
+}
+headers {
+  Content-Type: application/json
+  x-loyalty-timestamp: {{shopify_service_timestamp}}
+  x-loyalty-signature: {{shopify_service_signature}}
+}
+body:json {
+  {
+    "shopId": "{{shopify_shop_id}}",
+    "customerId": "{{shopify_customer_id}}",
+    "countryCode": "+91",
+    "phoneNumber": "{{consumer_mobile_number}}"
+  }
+}
+tests {
+  test('Expected response', () => { expect(res.getStatus()).to.equal(201); expect(res.getBody().challengeId).to.be.a('string'); });
+}
+docs {
+  Server-to-server HMAC only. Sign the expanded request path including /api and query string, timestamp, uppercase method and EXACT body bytes separated by newlines. See docs/integrations/shopify-loyalty.md. Never put this signing secret in storefront JavaScript. Requires configured legal links. Copy challengeId into shopify_signup_challenge_id. Does not create membership yet.
+}

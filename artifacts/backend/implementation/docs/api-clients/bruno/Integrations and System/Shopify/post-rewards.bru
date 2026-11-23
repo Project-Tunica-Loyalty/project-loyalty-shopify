@@ -1,0 +1,31 @@
+meta {
+  name: Configure product reward
+  type: http
+  seq: 7
+}
+post {
+  url: {{base_url}}/brands/{{brand_id}}/shopify/rewards
+  body: json
+  auth: bearer
+}
+auth:bearer {
+  token: {{account_access_token}}
+}
+headers {
+  Content-Type: application/json
+}
+body:json {
+  {
+    "shopId": "{{shopify_shop_id}}",
+    "variantId": "gid://shopify/ProductVariant/123",
+    "title": "Reward product",
+    "pointsCost": 100,
+    "enabled": true
+  }
+}
+tests {
+  test('Expected response', () => { expect(res.getStatus()).to.equal(201); expect(res.getBody().id).to.be.a('string'); });
+}
+docs {
+  Project Loyalty brand owner JWT plus LOYALTY_SETTINGS update permission. The Shopify app verifies the variant through the authenticated shop Admin API. Legacy HMAC-only POST /integrations/shopify/rewards is rejected.
+}

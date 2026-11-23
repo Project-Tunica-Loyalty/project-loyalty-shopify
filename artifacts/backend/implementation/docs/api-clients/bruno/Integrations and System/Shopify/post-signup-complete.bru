@@ -1,0 +1,32 @@
+meta {
+  name: Complete or link membership
+  type: http
+  seq: 13
+}
+post {
+  url: {{base_url}}/integrations/shopify/customers/signup/complete
+  body: json
+  auth: none
+}
+headers {
+  Content-Type: application/json
+  x-loyalty-timestamp: {{shopify_service_timestamp}}
+  x-loyalty-signature: {{shopify_service_signature}}
+}
+body:json {
+  {
+    "shopId": "{{shopify_shop_id}}",
+    "customerId": "{{shopify_customer_id}}",
+    "name": "Shopify member",
+    "signupVerificationToken": "{{consumer_signup_verification_token}}",
+    "termsAccepted": true,
+    "termsVersion": "{{shopify_terms_version}}",
+    "marketingAccepted": false
+  }
+}
+tests {
+  test('Expected response', () => { expect(res.getStatus()).to.equal(201); expect(res.getBody().linked).to.equal(true); });
+}
+docs {
+  Server-to-server HMAC only. Sign the expanded request path including /api and query string, timestamp, uppercase method and EXACT body bytes separated by newlines. See docs/integrations/shopify-loyalty.md. Never put this signing secret in storefront JavaScript. Verify current terms, blocked accounts, duplicate completion, existing profile/consent preservation and optional marketing. No consumer session tokens are returned. Mapping and signup commit together.
+}

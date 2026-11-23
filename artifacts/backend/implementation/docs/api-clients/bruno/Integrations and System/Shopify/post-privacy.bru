@@ -1,0 +1,32 @@
+meta {
+  name: Forward verified customer data request
+  type: http
+  seq: 16
+}
+post {
+  url: {{base_url}}/integrations/shopify/privacy
+  body: json
+  auth: none
+}
+headers {
+  Content-Type: application/json
+  x-loyalty-timestamp: {{shopify_service_timestamp}}
+  x-loyalty-signature: {{shopify_service_signature}}
+}
+body:json {
+  {
+    "shopDomain": "{{shopify_shop_domain}}",
+    "topic": "customers/data_request",
+    "payload": {
+      "customer": {
+        "id": "{{shopify_customer_id}}"
+      }
+    }
+  }
+}
+tests {
+  test('Expected response', () => { expect(res.getStatus()).to.equal(201);  });
+}
+docs {
+  Server-to-server HMAC only. Sign the expanded request path including /api and query string, timestamp, uppercase method and EXACT body bytes separated by newlines. See docs/integrations/shopify-loyalty.md. Never put this signing secret in storefront JavaScript. Use only after Shopify webhook HMAC verification. customers/redact anonymizes integration data and returns discount IDs; shop/redact requires uninstall. These are destructive privacy events, run individually with deliberate payload selection.
+}

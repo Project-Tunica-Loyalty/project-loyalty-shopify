@@ -1,0 +1,146 @@
+enum ShopifyInstallationStatus {
+  ACTIVE
+  UNINSTALLED
+}
+
+enum ShopifyDiscountStatus {
+  PENDING
+  ACTIVE
+  USED
+  EXPIRED
+  FAILED
+}
+
+model ShopifyInstallation {
+  id               String @id @default(uuid()) @db.Uuid
+  shopId           String @unique @db.VarChar(80)
+  shopDomain       String @unique @db.VarChar(255)
+  brandId          String @db.Uuid
+  storeId          String @unique @db.Uuid
+  consumerClientId String @db.Uuid
+  status           ShopifyInstallationStatus @default(ACTIVE)
+  installedAt      DateTime @default(now())
+  uninstalledAt    DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  brand          Brand @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  store          Store @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  customerLinks  ShopifyCustomerLink[]
+  orders         ShopifyOrder[]
+  rewards        ShopifyRewardProduct[]
+  discounts      ShopifyDiscountRedemption[]
+  receipts       ShopifyWebhookReceipt[]
+
+  @@index([brandId, status])
+}
+
+model ShopifyConnectionToken {
+  id        String @id @default(uuid()) @db.Uuid
+  tokenHash String @unique @db.VarChar(64)
+  brandId   String @db.Uuid
+  storeId   String @db.Uuid
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([brandId, storeId, expiresAt])
+}
+
+model ShopifyCustomerLink {
+  id                String @id @default(uuid()) @db.Uuid
+  installationId    String @db.Uuid
+  shopifyCustomerId String @db.VarChar(80)
+  customerBrandId   String @db.Uuid
+  verifiedAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+
+  installation  ShopifyInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+  customerBrand CustomerBrand @relation(fields: [customerBrandId], references: [id], onDelete: Restrict)
+
+  @@unique([installationId, shopifyCustomerId])
+  @@unique([installationId, customerBrandId])
+}
+
+model ShopifyOrder {
+  id                String @id @default(uuid()) @db.Uuid
+  installationId    String @db.Uuid
+  shopifyOrderId    String @db.VarChar(80)
+  shopifyCustomerId String? @db.VarChar(80)
+  purchaseId        String? @unique @db.Uuid
+  paid              Boolean @default(false)
+  fullyFulfilled    Boolean @default(false)
+  cancelled         Boolean @default(false)
+  refundedAmount    Decimal @default(0) @db.Decimal(12, 2)
+  earningAmount     Decimal @default(0) @db.Decimal(12, 2)
+  currency          String @db.VarChar(10)
+  occurredAt        DateTime?
+  lastSyncedAt      DateTime @default(now())
+  sourceUpdatedAt   DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  installation ShopifyInstallation @relation(fields: [installationId], references: [id], onDelete: Restrict)
+  purchase     Purchase? @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+
+  @@unique([installationId, shopifyOrderId])
+  @@index([installationId, lastSyncedAt])
+}
+
+model ShopifyRewardProduct {
+  id             String @id @default(uuid()) @db.Uuid
+  installationId String @db.Uuid
+  variantId      String @db.VarChar(80)
+  title          String @db.VarChar(255)
+  pointsCost     Decimal @db.Decimal(12, 2)
+  enabled        Boolean @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  installation ShopifyInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+
+  @@unique([installationId, variantId])
+}
+
+model ShopifyDiscountRedemption {
+  id                String @id @default(uuid()) @db.Uuid
+  installationId    String @db.Uuid
+  pointRedemptionId String @unique @db.Uuid
+  shopifyCustomerId String @db.VarChar(80)
+  discountId        String? @unique @db.VarChar(80)
+  code              String? @unique @db.VarChar(100)
+  variantId         String? @db.VarChar(80)
+  status            ShopifyDiscountStatus @default(PENDING)
+  expiresAt         DateTime
+  minimumSubtotal   Decimal @default(0) @db.Decimal(18, 2)
+  deactivatedAt     DateTime?
+  usedOrderId       String? @db.VarChar(80)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  installation    ShopifyInstallation @relation(fields: [installationId], references: [id], onDelete: Restrict)
+  pointRedemption PointRedemption @relation(fields: [pointRedemptionId], references: [id], onDelete: Restrict)
+
+  @@index([installationId, status, expiresAt])
+}
+
+model ShopifyWebhookReceipt {
+  id             String @id @default(uuid()) @db.Uuid
+  installationId String @db.Uuid
+  webhookId      String @unique @db.VarChar(100)
+  topic          String @db.VarChar(100)
+  payload        Json @db.JsonB
+  processedAt    DateTime?
+  error          String? @db.Text
+  createdAt      DateTime @default(now())
+
+  installation ShopifyInstallation @relation(fields: [installationId], references: [id], onDelete: Restrict)
+
+  @@index([processedAt, createdAt])
+}
+
+model ShopifyCustomerPrivacy {
+  id String @id @db.VarChar(64)
+  redactedAt DateTime @default(now())
+  reconsentedAt DateTime?
+}

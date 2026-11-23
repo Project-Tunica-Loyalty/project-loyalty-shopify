@@ -9,8 +9,8 @@ generator client {
 // enough when changing adapters.
 // See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Session {
@@ -31,4 +31,28 @@ model Session {
   emailVerified Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+
+  @@index([shop])
+}
+
+model BrandAdminSession {
+  id String @id
+  shop String
+  staffId String
+  encryptedTokens String
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([shop])
+  @@index([expiresAt])
+}
+
+model CustomerDataRequest {
+  id String @id
+  shop String
+  subjectHash String?
+  requestedAt DateTime @default(now())
+  encryptedResult String
+
+  @@index([shop, requestedAt])
 }

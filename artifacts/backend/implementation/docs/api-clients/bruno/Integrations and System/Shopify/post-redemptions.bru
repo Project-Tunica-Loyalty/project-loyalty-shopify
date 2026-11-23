@@ -1,0 +1,26 @@
+﻿meta {
+  name: Reserve or issue discount
+  type: http
+  seq: 7
+}
+post {
+  url: {{base_url}}/integrations/shopify/redemptions
+  body: json
+  auth: none
+}
+headers {
+  Content-Type: application/json
+  x-loyalty-timestamp: {{shopify_service_timestamp}}
+  x-loyalty-signature: {{shopify_service_signature}}
+  idempotency-key: {{idempotency_key}}
+}
+body:json {
+  { "action": "RESERVE", "shopId": "{{shopify_shop_id}}", "customerId": "{{shopify_customer_id}}", "kind": "ORDER", "points": 100, "cartSubtotal": 500 }
+}
+tests {
+  const body = res.getBody(); test('points reserved', () => { expect(res.getStatus()).to.equal(201); expect(body.redemptionId).to.be.a('string'); });
+}
+docs {
+  Server-to-server HMAC only. Sign the expanded request path including /api and query string, timestamp, uppercase method and EXACT body bytes separated by newlines. See docs/integrations/shopify-loyalty.md. Never put this signing secret in storefront JavaScript.
+  For product rewards set kind PRODUCT and rewardProductId. To record Shopify code creation send action ISSUED, redemptionId, discountId, and code. On verified deactivation after issuance failure send action FAILED, redemptionId and the same customerId. Retrying RESERVE with the same idempotency key returns the same reserved code. The response minimumSubtotal must be enforced in Shopify checkout; never trust cartSubtotal as the final limit.
+}

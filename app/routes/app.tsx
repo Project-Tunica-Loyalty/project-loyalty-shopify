@@ -1,5 +1,5 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Outlet, useLoaderData, useRouteError } from "react-router";
+import { Link, Outlet, useLoaderData, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
@@ -17,10 +17,23 @@ export default function App() {
 
   return (
     <AppProvider apiKey={apiKey}>
-      <s-app-nav>
-        <s-link href="/app">Home</s-link>
-        <s-link href="/app/additional">Additional page</s-link>
-      </s-app-nav>
+      <nav
+        aria-label="Project Loyalty"
+        style={{ display: "flex", flexWrap: "wrap", gap: 16, padding: 16 }}
+      >
+        {[
+          ["overview", "Overview"],
+          ["program", "Program rules"],
+          ["customers", "Customers"],
+          ["rewards", "Rewards"],
+          ["reports", "Reports"],
+          ["settings", "Connection settings"],
+        ].map(([view, label]) => (
+          <Link key={view} to={`/app/loyalty/${view}`}>
+            {label}
+          </Link>
+        ))}
+      </nav>
       <Outlet />
     </AppProvider>
   );

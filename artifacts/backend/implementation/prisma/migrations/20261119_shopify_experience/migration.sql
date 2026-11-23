@@ -1,0 +1,3 @@
+ALTER TABLE "ShopifyDiscountRedemption" ADD COLUMN "minimumSubtotal" DECIMAL(18,2) NOT NULL DEFAULT 0, ADD COLUMN "deactivatedAt" TIMESTAMP(3);
+ALTER TABLE "ShopifyOrder" ADD COLUMN "sourceUpdatedAt" TIMESTAMP(3);
+CREATE TABLE "ShopifyCustomerPrivacy" ("id" VARCHAR(64) NOT NULL PRIMARY KEY, "redactedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "reconsentedAt" TIMESTAMP(3));

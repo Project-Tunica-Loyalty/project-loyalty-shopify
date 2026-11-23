@@ -1,0 +1,25 @@
+﻿meta {
+  name: Forward verified Shopify event
+  type: http
+  seq: 8
+}
+post {
+  url: {{base_url}}/integrations/shopify/events
+  body: json
+  auth: none
+}
+headers {
+  Content-Type: application/json
+  x-loyalty-timestamp: {{shopify_service_timestamp}}
+  x-loyalty-signature: {{shopify_service_signature}}
+}
+body:json {
+  { "shopId": "{{shopify_shop_id}}", "webhookId": "{{shopify_webhook_id}}", "topic": "orders/fulfilled", "payload": { "orderId": "gid://shopify/Order/123", "customerId": "123", "paid": true, "fullyFulfilled": true, "cancelled": false, "currency": "INR", "merchandiseAfterDiscounts": "500.00", "refundedMerchandise": "0.00", "merchandiseTax": "90.00", "refundedMerchandiseTax": "0.00", "sourceUpdatedAt": "2026-11-18T12:00:00Z", "discountCodes": [] } }
+}
+tests {
+  const body = res.getBody(); test('event acknowledged', () => { expect(res.getStatus()).to.equal(201); expect(body.accepted || body.duplicate).to.equal(true); });
+}
+docs {
+  Server-to-server HMAC only. Sign the expanded request path including /api and query string, timestamp, uppercase method and EXACT body bytes separated by newlines. See docs/integrations/shopify-loyalty.md. Never put this signing secret in storefront JavaScript.
+  The app verifies Shopify HMAC, fetches the latest order, normalizes its monetary fields, then signs this backend request. customerId is the numeric Shopify customer ID used by app proxy. webhookId is unique per delivery. Uninstall returns discountIds for deactivation.
+}

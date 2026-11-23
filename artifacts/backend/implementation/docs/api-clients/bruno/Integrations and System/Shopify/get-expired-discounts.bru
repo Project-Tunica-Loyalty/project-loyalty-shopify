@@ -1,0 +1,21 @@
+meta {
+  name: List discounts awaiting deactivation
+  type: http
+  seq: 14
+}
+get {
+  url: {{base_url}}/integrations/shopify/discounts/expired?shopId={{shopify_shop_id}}
+  body: none
+  auth: none
+}
+headers {
+  Content-Type: application/json
+  x-loyalty-timestamp: {{shopify_service_timestamp}}
+  x-loyalty-signature: {{shopify_service_signature}}
+}
+tests {
+  test('Expected response', () => { expect(res.getStatus()).to.equal(200); expect(res.getBody()).to.be.an('array'); });
+}
+docs {
+  Server-to-server HMAC only. Sign the expanded request path including /api and query string, timestamp, uppercase method and EXACT body bytes separated by newlines. See docs/integrations/shopify-loyalty.md. Never put this signing secret in storefront JavaScript. Deactivate each returned discount in Shopify before acknowledging.
+}

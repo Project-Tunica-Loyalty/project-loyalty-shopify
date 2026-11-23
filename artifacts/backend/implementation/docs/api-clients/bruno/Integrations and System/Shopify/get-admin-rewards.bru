@@ -1,0 +1,22 @@
+meta {
+  name: Read merchant reward configuration
+  type: http
+  seq: 17
+}
+get {
+  url: {{base_url}}/brands/{{brand_id}}/shopify/rewards?shopId={{shopify_shop_id}}
+  body: none
+  auth: bearer
+}
+auth:bearer {
+  token: {{account_access_token}}
+}
+headers {
+  Content-Type: application/json
+}
+tests {
+  test('Expected response', () => { expect(res.getStatus()).to.equal(200); expect(res.getBody().products).to.be.an('array'); });
+}
+docs {
+  Project Loyalty brand JWT plus LOYALTY_SETTINGS read permission. Includes disabled rewards. Wrong-brand shops and unauthorized operators must be denied.
+}
