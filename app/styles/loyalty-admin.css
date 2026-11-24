@@ -1,0 +1,207 @@
+.loyalty-app {
+  --loyalty-primary: #ff5a1f;
+  --loyalty-primary-hover: #e84912;
+  --loyalty-text: #181818;
+  --loyalty-muted: #4d4354;
+  --loyalty-border: #e5e7eb;
+  --loyalty-surface: #f9f9f9;
+  color: var(--loyalty-text);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.loyalty-app-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 20px;
+  background: #fff;
+  border-bottom: 1px solid var(--loyalty-border);
+}
+
+.loyalty-app-nav-link {
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--loyalty-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-decoration: none;
+}
+
+.loyalty-app-nav-link:hover,
+.loyalty-app-nav-link.is-active {
+  border-color: #ffd8ca;
+  background: #fff4f1;
+  color: var(--loyalty-primary);
+}
+
+.loyalty-app-nav-link:focus-visible,
+.loyalty-app button:focus-visible,
+.loyalty-app input:focus-visible,
+.loyalty-app select:focus-visible {
+  outline: 2px solid var(--loyalty-primary);
+  outline-offset: 2px;
+}
+
+.loyalty-form {
+  display: grid;
+  gap: 16px;
+  max-width: 850px;
+}
+
+.loyalty-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--loyalty-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.loyalty-form input:not([type="checkbox"]):not([type="hidden"]),
+.loyalty-form select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 1px solid var(--loyalty-border);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--loyalty-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.loyalty-form input[type="checkbox"] {
+  accent-color: var(--loyalty-primary);
+}
+
+.loyalty-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+
+.loyalty-form fieldset {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--loyalty-border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.loyalty-app button:not([class]) {
+  min-height: 36px;
+  padding: 8px 14px;
+  border: 1px solid var(--loyalty-primary);
+  border-radius: 9px;
+  background: var(--loyalty-primary);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.loyalty-app button:not([class]):hover:not(:disabled) {
+  background: var(--loyalty-primary-hover);
+}
+
+.loyalty-app button:not([class]):disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.loyalty-app button[type="button"]:not([class]),
+.loyalty-app button[value="logout"]:not([class]),
+.loyalty-app button[value="resend-mfa"]:not([class]),
+.loyalty-nav button:not([class]),
+.loyalty-table button:not([class]) {
+  border-color: var(--loyalty-border);
+  background: #fff;
+  color: var(--loyalty-text);
+}
+
+.loyalty-app button[type="button"]:not([class]):hover:not(:disabled),
+.loyalty-app button[value="logout"]:not([class]):hover:not(:disabled),
+.loyalty-app button[value="resend-mfa"]:not([class]):hover:not(:disabled),
+.loyalty-nav button:not([class]):hover:not(:disabled),
+.loyalty-table button:not([class]):hover:not(:disabled) {
+  border-color: #ffd8ca;
+  background: #fff4f1;
+  color: var(--loyalty-primary);
+}
+
+.loyalty-details {
+  margin: 0;
+}
+
+.loyalty-details > div {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--loyalty-border);
+}
+
+.loyalty-details dt {
+  color: var(--loyalty-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.loyalty-details dd {
+  margin: 5px 0 0;
+  color: var(--loyalty-text);
+}
+
+.loyalty-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+  font-size: 13px;
+}
+
+.loyalty-table th,
+.loyalty-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--loyalty-border);
+  text-align: left;
+}
+
+.loyalty-table th {
+  background: var(--loyalty-surface);
+  color: var(--loyalty-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.loyalty-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+@media (max-width: 600px) {
+  .loyalty-app-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 10px 12px;
+  }
+
+  .loyalty-app-nav-link {
+    flex: none;
+  }
+
+  .loyalty-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .loyalty-table {
+    display: block;
+    overflow-x: auto;
+  }
+}

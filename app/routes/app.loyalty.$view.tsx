@@ -608,7 +608,6 @@ export default function LoyaltyPage() {
   };
   return (
     <s-page heading={heading}>
-      <style>{`.loyalty-form{display:grid;gap:16px;max-width:850px}.loyalty-form label{display:grid;gap:6px}.loyalty-form input:not([type=checkbox]),.loyalty-form select{padding:10px;border:1px solid #999;border-radius:8px;max-width:100%;box-sizing:border-box}.loyalty-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}.loyalty-form fieldset{border:1px solid #ddd;padding:16px;border-radius:8px;display:grid;gap:12px}.loyalty-form button{padding:10px 14px;cursor:pointer}.loyalty-details>div{padding:8px 0;border-bottom:1px solid #eee}.loyalty-details dt{text-transform:capitalize;font-weight:600}.loyalty-details dd{margin:4px 0}.loyalty-table{width:100%;border-collapse:collapse}.loyalty-table th,.loyalty-table td{text-align:left;padding:12px;border-bottom:1px solid #ddd}.loyalty-nav{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px}`}</style>
       <s-section heading={loaded.connection.brandName || "Connect your brand"}>
         <s-paragraph>
           {loaded.shop.myshopifyDomain} · {loaded.shop.currencyCode} ·{" "}
@@ -1095,7 +1094,7 @@ export default function LoyaltyPage() {
             <s-section heading="Customer data requests">
               <s-paragraph>
                 Download and deliver these exports to the requesting customer
-                through the brand's verified support process.
+                through the brand&apos;s verified support process.
               </s-paragraph>
               <ul>
                 {loaded.privacyRequests.map((item) => (

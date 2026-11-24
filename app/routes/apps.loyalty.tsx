@@ -1,6 +1,10 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
-import { identityPath, loyaltyApi } from "../lib/loyalty-api.server";
+import {
+  identityPath,
+  loyaltyApi,
+  LoyaltyApiError,
+} from "../lib/loyalty-api.server";
 import {
   deactivateDiscount,
   issueDiscount,
@@ -22,7 +26,8 @@ async function context(request: Request) {
   if (!proxy.admin || !proxy.session)
     throw new Response("Shop is not installed", { status: 403 });
   const shopResponse = await proxy.admin.graphql(
-    `#graphql query LoyaltyProxyShop { shop { id plan { shopifyPlus partnerDevelopment } } }`,
+    `#graphql
+    query LoyaltyProxyShop { shop { id plan { shopifyPlus partnerDevelopment } } }`,
   );
   const shopInfo = (await shopResponse.json()).data?.shop;
   const shopId = shopInfo?.id as string | undefined;
@@ -64,6 +69,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ),
     });
   } catch (error) {
+    if (
+      !url.searchParams.has("view") &&
+      error instanceof LoyaltyApiError &&
+      error.status === 403 &&
+      error.message === "Customer must link an active loyalty account"
+    )
+      return json({ linked: false });
     return json(
       {
         linked: false,

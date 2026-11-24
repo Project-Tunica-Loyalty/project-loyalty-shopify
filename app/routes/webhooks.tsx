@@ -38,7 +38,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   for (const session of sessions) {
     const { admin } = await unauthenticated.admin(session.shop);
     const shopResponse = await admin.graphql(
-      `#graphql query LoyaltyShopId { shop { id } }`,
+      `#graphql
+      query LoyaltyShopId { shop { id } }`,
     );
     const shopId = (await shopResponse.json()).data?.shop?.id as
       string | undefined;
@@ -108,7 +109,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const webhookId = request.headers.get("x-shopify-webhook-id");
   if (!webhookId) return new Response("Webhook ID missing", { status: 400 });
   const shopResponse = await admin.graphql(
-    `#graphql query LoyaltyShopId { shop { id } }`,
+    `#graphql
+    query LoyaltyShopId { shop { id } }`,
   );
   const shopId = (await shopResponse.json()).data?.shop?.id as
     string | undefined;
