@@ -1,19 +1,62 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "cbf592fd6d137c4198f9166abbac1cb0"
-application_url = "https://example.com"
-embedded = true
+client_id = "0814c471da200f7ce2a71ac98eed7d4b"
 name = "reglrs-loyalty-app"
+application_url = "https://shopify.reglrs.ai"
+embedded = true
+
+[webhooks]
+api_version = "2026-10"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/compliance"
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+[events]
+api_version = "2026-10"
+
+  [[events.subscription]]
+  topic = "Product"
+  actions = [ "update" ]
+  triggers = [ "product.variants.price", "product.variants.compareAtPrice" ]
+  uri = "https://shopify.reglrs.ai/webhooks/products/update"
+  query = """
+  query product_variant_price_change($productId: ID!, $variantsId: ID!) {\r\r
+    product(id: $productId) {\r\r
+      id\r\r
+      title\r\r
+      status\r\r
+    }\r\r
+    productVariant(id: $variantsId) {\r\r
+      id\r\r
+      title\r\r
+      price\r\r
+      compareAtPrice\r\r
+    }\r\r
+  }\r\r
+  """
+  query_filter = "product.status:'ACTIVE'"
+  handle = "product-price-change"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "read_customers,read_discounts,read_orders,read_products,write_app_proxy,write_discounts"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://shopify.reglrs.ai/auth/callback" ]
 
-[webhooks]
-api_version = "2027-01"
+[app_proxy]
+url = "https://shopify.reglrs.ai/apps/loyalty"
+subpath = "loyalty"
+prefix = "apps"
 
 [build]
-automatically_update_urls_on_dev = true
+automatically_update_urls_on_dev = false

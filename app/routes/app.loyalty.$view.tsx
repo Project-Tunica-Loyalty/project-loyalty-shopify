@@ -10,6 +10,7 @@ import db from "../db.server";
 import { useState } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { merchantContext } from "../lib/shop-context.server";
+import { assertAppOrigin } from "../lib/request-origin.server";
 import {
   backendApi,
   LoyaltyApiError,
@@ -202,9 +203,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const ctx = await merchantContext(request);
-  const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin)
-    throw new Response("Invalid request origin", { status: 403 });
+  assertAppOrigin(request);
   const form = await request.formData();
   const intent = String(form.get("intent") || "");
   try {
