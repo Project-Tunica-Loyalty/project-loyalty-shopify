@@ -1,0 +1,24 @@
+{
+  "payload": {
+    "export": "cart-lines-discounts-generate-run",
+    "target": "cart.lines.discounts.generate.run",
+    "input": {
+      "cart": {
+        "buyerIdentity": {
+          "isAuthenticated": true,
+          "phone": "+15557654321",
+          "customer": { "id": "gid://shopify/Customer/123" }
+        },
+        "cost": { "subtotalAmount": { "amount": "200.00" } },
+        "lines": []
+      },
+      "discount": {
+        "discountClasses": ["ORDER"],
+        "metafield": {
+          "value": "{\"kind\":\"ORDER\",\"customerId\":\"gid://shopify/Customer/123\",\"verifiedPhone\":\"+15551234567\",\"amount\":\"25.00\",\"minimumSubtotal\":\"100.00\"}"
+        }
+      }
+    },
+    "output": { "operations": [] }
+  }
+}

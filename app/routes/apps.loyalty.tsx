@@ -5,11 +5,6 @@ import {
   loyaltyApi,
   LoyaltyApiError,
 } from "../lib/loyalty-api.server";
-import {
-  deactivateDiscount,
-  issueDiscount,
-  type DiscountInstruction,
-} from "../lib/discounts.server";
 
 const json = (data: unknown, status = 200) =>
   Response.json(data, {
@@ -33,13 +28,9 @@ async function context(request: Request) {
   const shopId = shopInfo?.id as string | undefined;
   if (!shopId) throw new Response("Shop is unavailable", { status: 503 });
   return {
-    admin: proxy.admin,
     shopId,
     customerId: rawId,
     shop: proxy.session.shop,
-    compatible: Boolean(
-      shopInfo.plan?.shopifyPlus || shopInfo.plan?.partnerDevelopment,
-    ),
   };
 }
 
@@ -88,8 +79,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, shopId, customerId, shop, compatible } =
-    await context(request);
+  const { shopId, customerId } = await context(request);
   const form = await request.formData();
   const intent = String(form.get("intent") || "");
   const identity = { shopId, customerId };
@@ -151,68 +141,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }),
       );
     }
-    if (intent === "redeem") {
-      const key = String(form.get("idempotencyKey") || "");
-      if (!/^[a-zA-Z0-9_-]{16,100}$/.test(key))
-        throw new Error("Invalid redemption request key");
-      const kind = String(form.get("kind") || "");
-      if (!["PRODUCT", "ORDER"].includes(kind))
-        throw new Error("Invalid reward type");
-      if (!compatible)
-        throw new Error(
-          "This custom app requires a compatible Plus store for redemption",
-        );
-      const requestBody = {
-        ...identity,
-        kind,
-        ...(kind === "PRODUCT"
-          ? { rewardProductId: String(form.get("rewardProductId") || "") }
-          : {
-              points: Number(form.get("points")),
-              cartSubtotal: Number(form.get("cartSubtotal")),
-            }),
-      };
-      const instruction = await loyaltyApi<DiscountInstruction>(
-        "POST",
-        "/integrations/shopify/redemptions",
-        requestBody,
-        key,
-      );
-      if (instruction.status === "ACTIVE" && instruction.code)
-        return json({
-          expiresAt: instruction.expiresAt,
-          code: instruction.code,
-          applyUrl: `https://${shop}/discount/${encodeURIComponent(instruction.code)}?redirect=/checkout`,
-        });
-      let created: { code: string; discountId: string } | undefined;
-      try {
-        created = await issueDiscount(admin, customerId, instruction);
-        await loyaltyApi("POST", "/integrations/shopify/redemptions", {
-          ...identity,
-          action: "ISSUED",
-          redemptionId: instruction.redemptionId,
-          discountId: created.discountId,
-          code: created.code,
-        });
-      } catch (error) {
-        // A network failure can leave a discount issued. Keep its points reserved
-        // unless we know that the code has been successfully deactivated.
-        if (created?.discountId) {
-          await deactivateDiscount(admin, created.discountId);
-          await loyaltyApi("POST", "/integrations/shopify/redemptions", {
-            ...identity,
-            action: "FAILED",
-            redemptionId: instruction.redemptionId,
-          });
-        }
-        throw error;
-      }
-      return json({
-        expiresAt: instruction.expiresAt,
-        code: created.code,
-        applyUrl: `https://${shop}/discount/${encodeURIComponent(created.code)}?redirect=/checkout`,
-      });
-    }
+    if (intent === "redeem")
+      return json({ error: "Use points at checkout" }, 400);
     return json({ error: "Unknown action" }, 400);
   } catch (error) {
     return json(

@@ -15,6 +15,7 @@ export type DiscountInstruction = {
   variantId: string | null;
   expiresAt: string;
   minimumSubtotal: string;
+  verifiedPhone: string;
 };
 
 const code = () => `PL${randomBytes(18).toString("hex").toUpperCase()}`;
@@ -64,7 +65,15 @@ async function createDiscount(
       shippingDiscounts: false,
     },
   };
-  if (instruction.variantId) {
+  const configuration = JSON.stringify({
+    kind: instruction.variantId ? "PRODUCT" : "ORDER",
+    customerId: customerGid,
+    verifiedPhone: instruction.verifiedPhone,
+    variantId: instruction.variantId,
+    amount: instruction.discountAmount,
+    minimumSubtotal: instruction.minimumSubtotal,
+  });
+  {
     const result = await run(
       admin,
       `#graphql
@@ -78,13 +87,13 @@ async function createDiscount(
         input: {
           ...common,
           functionHandle: "loyalty-discount",
-          discountClasses: ["PRODUCT"],
+          discountClasses: [instruction.variantId ? "PRODUCT" : "ORDER"],
           metafields: [
             {
               namespace: "loyalty_discount",
               key: "configuration",
-              type: "single_line_text_field",
-              value: instruction.variantId,
+              type: "json",
+              value: configuration,
             },
           ],
         },
@@ -96,40 +105,6 @@ async function createDiscount(
       discountId: result.codeAppDiscount.discountId as string,
     };
   }
-  const result = await run(
-    admin,
-    `#graphql
-    mutation LoyaltyOrderDiscount($input: DiscountCodeBasicInput!) {
-      discountCodeBasicCreate(basicCodeDiscount: $input) {
-        codeDiscountNode { id }
-        userErrors { message field }
-      }
-    }`,
-    {
-      input: {
-        ...common,
-        minimumRequirement: {
-          subtotal: {
-            greaterThanOrEqualToSubtotal: instruction.minimumSubtotal,
-          },
-        },
-        customerGets: {
-          value: {
-            discountAmount: {
-              amount: instruction.discountAmount,
-              appliesOnEachItem: false,
-            },
-          },
-          items: { all: true },
-        },
-      },
-    },
-    "discountCodeBasicCreate",
-  );
-  return {
-    code: common.code,
-    discountId: result.codeDiscountNode.id as string,
-  };
 }
 
 export async function deactivateDiscount(admin: Admin, id: string) {
@@ -153,6 +128,8 @@ export async function issueDiscount(
     throw new Error(
       "The reward reservation has no recovery code; retry after it expires",
     );
+  if (!/^\+\d{8,15}$/.test(instruction.verifiedPhone))
+    throw new Error("The reward reservation has no verified phone");
   if (
     !instruction.variantId &&
     (!Number.isFinite(Number(instruction.minimumSubtotal)) ||

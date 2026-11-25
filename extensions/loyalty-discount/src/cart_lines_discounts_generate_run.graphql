@@ -1,5 +1,11 @@
 query CartInput {
   cart {
+    buyerIdentity {
+      isAuthenticated
+      phone
+      customer { id }
+    }
+    cost { subtotalAmount { amount } }
     lines {
       id
       quantity

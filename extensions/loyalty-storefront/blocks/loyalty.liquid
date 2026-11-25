@@ -34,14 +34,6 @@
         <button type="submit">Link account</button>
       </form>
     </div>
-    <div data-loyalty-redeem hidden>
-      <form data-loyalty-order>
-        <label>Points to use <input name="points" type="number" min="0.01" step="0.01" required></label>
-        <button type="submit">Get order discount</button>
-      </form>
-      <div data-loyalty-products></div>
-    </div>
-    <p data-loyalty-code></p>
   {% else %}
     <p><a href="{{ routes.account_login_url }}">Log in</a> to use your loyalty points.</p>
   {% endif %}

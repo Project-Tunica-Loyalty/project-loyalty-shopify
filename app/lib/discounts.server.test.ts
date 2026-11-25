@@ -6,6 +6,7 @@ const instruction = {
   code: "PLSINGLEUSE",
   discountAmount: "25.00",
   minimumSubtotal: "100.00",
+  verifiedPhone: "+15551234567",
   variantId: null,
   expiresAt: "2030-01-01T00:00:00.000Z",
 };
@@ -19,8 +20,8 @@ describe("Shopify discount issuance", () => {
       .mockResolvedValueOnce(
         Response.json({
           data: {
-            discountCodeBasicCreate: {
-              codeDiscountNode: { id: "discount-1" },
+            discountCodeAppCreate: {
+              codeAppDiscount: { discountId: "discount-1" },
               userErrors: [],
             },
           },
@@ -29,9 +30,11 @@ describe("Shopify discount issuance", () => {
     await issueDiscount({ graphql }, "123", instruction);
     const input = graphql.mock.calls[1][1].variables.input;
     expect(input.code).toBe("PLSINGLEUSE");
-    expect(input.minimumRequirement.subtotal.greaterThanOrEqualToSubtotal).toBe(
-      "100.00",
-    );
+    expect(input.discountClasses).toEqual(["ORDER"]);
+    expect(JSON.parse(input.metafields[0].value)).toMatchObject({
+      kind: "ORDER", amount: "25.00", minimumSubtotal: "100.00",
+      verifiedPhone: "+15551234567", customerId: "gid://shopify/Customer/123",
+    });
     expect(input.usageLimit).toBe(1);
     expect(input.context.customers.add).toEqual(["gid://shopify/Customer/123"]);
     expect(input.combinesWith).toEqual({

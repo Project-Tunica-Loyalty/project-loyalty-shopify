@@ -24,6 +24,7 @@ export default function App() {
             ["overview", "Overview"],
             ["program", "Program rules"],
             ["customers", "Customers"],
+            ["orders", "Orders"],
             ["rewards", "Rewards"],
             ["reports", "Reports"],
             ["settings", "Connection settings"],
