@@ -9,6 +9,17 @@ embedded = true
 api_version = "2026-10"
 
   [[webhooks.subscriptions]]
+  uri = "/webhooks"
+  topics = [
+    "orders/create",
+    "orders/fulfilled",
+    "orders/updated",
+    "orders/cancelled",
+    "refunds/create",
+    "orders/paid"
+  ]
+
+  [[webhooks.subscriptions]]
   uri = "/webhooks/app/uninstalled"
   topics = [ "app/uninstalled" ]
 
