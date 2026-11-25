@@ -1,4 +1,5 @@
 import '@shopify/ui-extensions/preact';
+import {useBillingAddress, useCustomer, usePhone, useShippingAddress} from '@shopify/ui-extensions/checkout/preact';
 import {render} from 'preact';
 import {useEffect, useState} from 'preact/hooks';
 
@@ -9,9 +10,9 @@ export default function extension() {
 }
 
 function LoyaltyCheckout() {
-  const customer = shopify.buyerIdentity.customer.value;
+  const customer = useCustomer();
   const customerId = customer?.id;
-  const checkoutPhone = shopify.buyerIdentity.phone.value;
+  const checkoutPhone = usePhone() || useShippingAddress()?.phone || useBillingAddress()?.phone;
   const [data, setData] = useState(null);
   const [points, setPoints] = useState('');
   const [busy, setBusy] = useState(false);
@@ -94,7 +95,9 @@ function LoyaltyCheckout() {
     <s-stack gap="base">
       <s-text>{available} points available</s-text>
       {!data.compatible && <s-banner tone="warning">Points redemption requires a Plus checkout.</s-banner>}
-      {!checkoutPhone && <s-banner tone="info">Add your linked phone as the checkout contact to use points.</s-banner>}
+      {!checkoutPhone && <s-banner tone="info">Add your linked phone to the checkout contact or delivery address to use points.</s-banner>}
+      {!canApply && <s-banner tone="warning">This checkout does not allow discount changes, so points cannot be applied here.</s-banner>}
+      {shopify.discountCodes.value.length > 0 && <s-banner tone="info">Remove the existing discount code before applying loyalty points.</s-banner>}
       {data.rewards?.redemptionType === 'PARTIAL' && <s-stack gap="base">
         <s-number-field label="Points to apply" value={points} min={1} max={available}
           onChange={(event) => setPoints(String('value' in event.currentTarget ? event.currentTarget.value : ''))} />
