@@ -12,18 +12,27 @@ const instruction = {
 };
 describe("Shopify discount issuance", () => {
   it("deletes a cancelled code discount", async () => {
-    const graphql = vi.fn().mockResolvedValue(Response.json({ data: { discountCodeDelete: {
+    const graphql = vi.fn()
+      .mockResolvedValueOnce(Response.json({ data: { discountNode: { id: "gid://shopify/DiscountCodeNode/1" } } }))
+      .mockResolvedValueOnce(Response.json({ data: { discountCodeDelete: {
       deletedCodeDiscountId: "gid://shopify/DiscountCodeNode/1", userErrors: [],
     } } }));
     await deleteDiscount({ graphql }, "gid://shopify/DiscountCodeNode/1");
-    expect(graphql.mock.calls[0][0]).toContain("discountCodeDelete");
+    expect(graphql.mock.calls[1][0]).toContain("discountCodeDelete");
   });
   it("deletes a cancelled automatic discount", async () => {
-    const graphql = vi.fn().mockResolvedValue(Response.json({ data: { discountAutomaticDelete: {
+    const graphql = vi.fn()
+      .mockResolvedValueOnce(Response.json({ data: { discountNode: { id: "gid://shopify/DiscountAutomaticNode/1" } } }))
+      .mockResolvedValueOnce(Response.json({ data: { discountAutomaticDelete: {
       deletedAutomaticDiscountId: "gid://shopify/DiscountAutomaticNode/1", userErrors: [],
     } } }));
     await deleteDiscount({ graphql }, "gid://shopify/DiscountAutomaticNode/1");
-    expect(graphql.mock.calls[0][0]).toContain("discountAutomaticDelete");
+    expect(graphql.mock.calls[1][0]).toContain("discountAutomaticDelete");
+  });
+  it("treats an already deleted coupon as removed", async () => {
+    const graphql = vi.fn().mockResolvedValue(Response.json({ data: { discountNode: null } }));
+    await deleteDiscount({ graphql }, "gid://shopify/DiscountCodeNode/1");
+    expect(graphql).toHaveBeenCalledTimes(1);
   });
   it("creates a customer-restricted automatic points discount without a coupon", async () => {
     const graphql = vi.fn()

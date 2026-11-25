@@ -4,7 +4,7 @@ import { authenticate, unauthenticated } from "../shopify.server";
 import db from "../db.server";
 import { loyaltyApi } from "../lib/loyalty-api.server";
 import { orderSnapshot } from "../lib/orders.server";
-import { deactivateDiscount } from "../lib/discounts.server";
+import { deactivateDiscount, deleteDiscount } from "../lib/discounts.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const secret = process.env.SHOPIFY_LOYALTY_SERVICE_SECRET;
@@ -58,7 +58,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       `/integrations/shopify/discounts/expired?shopId=${encodeURIComponent(shopId)}`,
     );
     for (const discount of expired) {
-      await deactivateDiscount(admin, discount.discountId);
+      if (discount.discountId.startsWith("gid://shopify/DiscountCodeNode/"))
+        await deleteDiscount(admin, discount.discountId);
+      else
+        await deactivateDiscount(admin, discount.discountId);
       await loyaltyApi("POST", "/integrations/shopify/discounts/deactivated", {
         shopId,
         discountId: discount.discountId,

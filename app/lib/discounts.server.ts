@@ -128,6 +128,14 @@ export async function deactivateDiscount(admin: Admin, id: string) {
 }
 
 export async function deleteDiscount(admin: Admin, id: string) {
+  if (!/^gid:\/\/shopify\/Discount(?:Automatic|Code)Node\/\d+$/.test(id))
+    throw new Error("Invalid loyalty discount ID");
+  const lookup = await admin.graphql(`#graphql
+    query LoyaltyDiscountExistence($id: ID!) { discountNode(id: $id) { id } }
+  `, { variables: { id } });
+  const existing = await lookup.json();
+  if (existing.errors?.length) throw new Error("Could not verify the loyalty discount");
+  if (!existing.data?.discountNode) return;
   if (id.startsWith("gid://shopify/DiscountAutomaticNode/")) {
     const deleted = await run(admin, `#graphql
       mutation LoyaltyAutomaticDelete($id: ID!) {
@@ -137,8 +145,6 @@ export async function deleteDiscount(admin: Admin, id: string) {
       throw new Error("Shopify did not delete the loyalty discount");
     return;
   }
-  if (!id.startsWith("gid://shopify/DiscountCodeNode/"))
-    throw new Error("Invalid loyalty discount ID");
   const deleted = await run(admin, `#graphql
     mutation LoyaltyCodeDelete($id: ID!) {
       discountCodeDelete(id: $id) { deletedCodeDiscountId userErrors { message field } }
