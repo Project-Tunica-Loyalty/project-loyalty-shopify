@@ -1,6 +1,10 @@
 (() => {
+  if (window.__loyaltyRefresh) {
+    window.__loyaltyRefresh();
+    return;
+  }
   const api = "/apps/loyalty";
-  document.querySelectorAll("[data-loyalty-block]").forEach((block) => {
+  const initBlocks = () => document.querySelectorAll("[data-loyalty-block]").forEach((block) => {
     if (
       block.dataset.loyaltyInitialized ||
       !block.querySelector("[data-loyalty-status]")
@@ -36,7 +40,7 @@
         if (coupon?.code && coupon?.cancelToken && Date.parse(coupon.expiresAt) > Date.now())
           return coupon;
         sessionStorage.removeItem(couponKey);
-      } catch { /* Storage may be unavailable in a private browser. */ }
+      } catch {}
       return null;
     };
     let coupon = readCoupon();
@@ -90,7 +94,7 @@
         });
         find("signup-verify").dataset.challengeId = result.challengeId;
         find("signup-verify").hidden = false;
-        status("Enter the verification code sent to your phone.");
+        status("Enter the code sent to your phone.");
       } catch (error) {
         status(error.message);
       } finally {
@@ -105,7 +109,7 @@
           challengeId: find("signup-verify").dataset.challengeId,
         });
         find("signup-verify").dataset.challengeId = result.challengeId;
-        status("A new phone verification code was sent.");
+        status("A new code was sent.");
       } catch (error) {
         status(error.message);
       } finally {
@@ -201,10 +205,10 @@
         redeem.dataset.idempotencyKey = idempotencyKey;
         const result = await post({ intent: "redeem", points, cartSubtotal, idempotencyKey });
         coupon = result;
-        try { sessionStorage.setItem(couponKey, JSON.stringify(coupon)); } catch { /* The coupon remains visible on this page. */ }
+        try { sessionStorage.setItem(couponKey, JSON.stringify(coupon)); } catch {}
         redeem.hidden = true;
         showCoupon();
-        status("Your coupon is ready. Apply it at checkout or cancel it here.");
+        status("Coupon ready. Apply at checkout or cancel here.");
       } catch (error) {
         status(error.message);
         button.disabled = false;
@@ -220,11 +224,11 @@
       try {
         await post({ intent: "cancel", cancelToken: coupon.cancelToken });
         coupon = null;
-        try { sessionStorage.removeItem(couponKey); } catch { /* Storage may be unavailable. */ }
+        try { sessionStorage.removeItem(couponKey); } catch {}
         redeem.dataset.idempotencyKey = "";
         showCoupon();
         await load();
-        status("Loyalty coupon deleted and points released.");
+        status("Coupon deleted. Points released.");
       } catch (error) {
         status(error.message);
       } finally {
@@ -233,4 +237,34 @@
     });
     load().catch((error) => status(error.message));
   });
+
+  const mountDrawer = () => {
+    const template = document.querySelector("[data-loyalty-cart-drawer-template]");
+    if (!template?.content) return;
+    document.querySelectorAll("cart-drawer,#CartDrawer,[data-cart-drawer],.cart-drawer").forEach((drawer) => {
+      const footer = drawer.querySelector(".drawer__footer,.cart-drawer__footer,[data-cart-drawer-footer],[data-cart-footer]");
+      if (!footer || footer.parentElement?.querySelector("[data-loyalty-drawer-card]")) return;
+      const card = template.content.querySelector("[data-loyalty-block]")?.cloneNode(true);
+      if (!card) return;
+      card.dataset.loyaltyDrawerCard = "true";
+      footer.before(card);
+    });
+  };
+
+  const refresh = () => {
+    mountDrawer();
+    initBlocks();
+  };
+  window.__loyaltyRefresh = refresh;
+  let queued = false;
+  const observer = new MutationObserver(() => {
+    if (queued) return;
+    queued = true;
+    queueMicrotask(() => {
+      queued = false;
+      refresh();
+    });
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  refresh();
 })();
