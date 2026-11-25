@@ -5,6 +5,7 @@ import {
   loyaltyApi,
   LoyaltyApiError,
 } from "../lib/loyalty-api.server";
+import { deactivateDiscount, issueBasicDiscount, type DiscountInstruction } from "../lib/discounts.server";
 
 const json = (data: unknown, status = 200) =>
   Response.json(data, {
@@ -31,6 +32,7 @@ async function context(request: Request) {
     shopId,
     customerId: rawId,
     shop: proxy.session.shop,
+    admin: proxy.admin,
   };
 }
 
@@ -79,7 +81,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shopId, customerId } = await context(request);
+  const { shopId, customerId, admin } = await context(request);
   const form = await request.formData();
   const intent = String(form.get("intent") || "");
   const identity = { shopId, customerId };
@@ -141,8 +143,38 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }),
       );
     }
-    if (intent === "redeem")
-      return json({ error: "Use points at checkout" }, 400);
+    if (intent === "redeem") {
+      const points = Number(form.get("points"));
+      const cartSubtotal = Number(form.get("cartSubtotal"));
+      const key = String(form.get("idempotencyKey") || "");
+      if (!Number.isFinite(points) || points <= 0 || !Number.isFinite(cartSubtotal) || cartSubtotal <= 0 ||
+          !/^[a-zA-Z0-9_-]{16,100}$/.test(key))
+        return json({ error: "Enter valid points for a nonempty cart" }, 400);
+      const instruction = await loyaltyApi<DiscountInstruction>(
+        "POST", "/integrations/shopify/redemptions", {
+          shopId, customerId, kind: "ORDER", channel: "STOREFRONT", points, cartSubtotal,
+        }, key,
+      );
+      if (instruction.status === "ACTIVE" && instruction.code)
+        return json({ code: instruction.code, expiresAt: instruction.expiresAt });
+      let created: { code: string; discountId: string } | undefined;
+      try {
+        created = await issueBasicDiscount(admin, customerId, instruction);
+        await loyaltyApi("POST", "/integrations/shopify/redemptions", {
+          shopId, customerId, action: "ISSUED", redemptionId: instruction.redemptionId,
+          discountId: created.discountId, code: created.code,
+        });
+      } catch (error) {
+        if (created?.discountId) {
+          await deactivateDiscount(admin, created.discountId);
+          await loyaltyApi("POST", "/integrations/shopify/redemptions", {
+            shopId, customerId, action: "FAILED", redemptionId: instruction.redemptionId,
+          });
+        }
+        throw error;
+      }
+      return json({ code: created.code, expiresAt: instruction.expiresAt });
+    }
     return json({ error: "Unknown action" }, 400);
   } catch (error) {
     return json(

@@ -28,6 +28,7 @@
     };
     let signupToken = "";
     let termsVersion = "";
+    let availablePoints = 0;
     const load = async () => {
       const balanceResponse = await fetch(api, { credentials: "same-origin" });
       const balance = await balanceResponse.json();
@@ -49,9 +50,15 @@
       }
       find("link").hidden = true;
       const available = balance.balance?.currentPoints ?? 0;
+      availablePoints = Number(available);
+      const redeem = find("redeem");
+      if (redeem && Number.isFinite(availablePoints) && availablePoints > 0) {
+        redeem.hidden = false;
+        redeem.elements.points.max = String(Math.floor(availablePoints));
+      } else if (redeem) redeem.hidden = true;
       status(balance.balance?.showStorefrontBalance
         ? `${available} points available`
-        : "Your loyalty account is connected. Use points at checkout.");
+        : "Your loyalty account is connected.");
     };
     find("signup-send").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -152,6 +159,33 @@
         await load();
       } catch (error) {
         status(error.message);
+      }
+    });
+    const redeem = find("redeem");
+    redeem?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = redeem.querySelector("button");
+      const points = Number(new FormData(redeem).get("points"));
+      if (!Number.isInteger(points) || points < 1 || points > availablePoints) {
+        status("Enter points within your available balance.");
+        return;
+      }
+      button.disabled = true;
+      try {
+        const cartResponse = await fetch("/cart.js", { credentials: "same-origin" });
+        if (!cartResponse.ok) throw new Error("Could not read the cart");
+        const cart = await cartResponse.json();
+        if (!cart.items?.length || !cart.items_subtotal_price)
+          throw new Error("Add a product to the cart first.");
+        const cartSubtotal = cart.items_subtotal_price / 100;
+        const idempotencyKey = redeem.dataset.idempotencyKey || crypto.randomUUID().replace(/-/g, "");
+        redeem.dataset.idempotencyKey = idempotencyKey;
+        const result = await post({ intent: "redeem", points, cartSubtotal, idempotencyKey });
+        status("Applying your points at checkout...");
+        window.location.assign(`/discount/${encodeURIComponent(result.code)}?redirect=/checkout`);
+      } catch (error) {
+        status(error.message);
+        button.disabled = false;
       }
     });
     load().catch((error) => status(error.message));

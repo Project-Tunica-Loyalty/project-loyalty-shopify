@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { issueDiscount } from "./discounts.server";
+import { issueBasicDiscount, issueDiscount } from "./discounts.server";
 const instruction = {
   redemptionId: "redemption-1",
   status: "PENDING",
@@ -11,6 +11,21 @@ const instruction = {
   expiresAt: "2030-01-01T00:00:00.000Z",
 };
 describe("Shopify discount issuance", () => {
+  it("creates a one-use customer-restricted native cart discount", async () => {
+    const graphql = vi.fn()
+      .mockResolvedValueOnce(Response.json({ data: { codeDiscountNodeByCode: null } }))
+      .mockResolvedValueOnce(Response.json({ data: { discountCodeBasicCreate: {
+        codeDiscountNode: { id: "gid://shopify/DiscountCodeNode/1" }, userErrors: [],
+      } } }));
+    await expect(issueBasicDiscount({ graphql }, "123", instruction)).resolves.toMatchObject({
+      code: "PLSINGLEUSE", discountId: "gid://shopify/DiscountCodeNode/1",
+    });
+    const input = graphql.mock.calls[1][1].variables.input;
+    expect(input.context.customers.add).toEqual(["gid://shopify/Customer/123"]);
+    expect(input.usageLimit).toBe(1);
+    expect(input.customerGets.value.discountAmount).toEqual({ amount: "25.00", appliesOnEachItem: false });
+    expect(input.minimumRequirement.subtotal.greaterThanOrEqualToSubtotal).toBe("100.00");
+  });
   it("enforces the backend's bill cap at Shopify checkout", async () => {
     const graphql = vi
       .fn()

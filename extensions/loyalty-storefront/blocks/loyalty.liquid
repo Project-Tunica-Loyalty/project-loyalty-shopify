@@ -2,6 +2,12 @@
   {% if customer %}
     <h2>{{ block.settings.heading | escape }}</h2>
     <p data-loyalty-status>Loading your points…</p>
+    {% if request.page_type == 'cart' %}
+      <form data-loyalty-redeem hidden>
+        <label>Points to use <input name="points" type="number" min="1" step="1" inputmode="numeric" required></label>
+        <button type="submit">Use points at checkout</button>
+      </form>
+    {% endif %}
     <div data-loyalty-link hidden>
       <details>
         <summary>New to our loyalty program? Join here</summary>

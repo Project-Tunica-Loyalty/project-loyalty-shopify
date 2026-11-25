@@ -167,3 +167,63 @@ export async function issueDiscount(
     throw error;
   }
 }
+
+export async function issueBasicDiscount(
+  admin: Admin,
+  customerId: string,
+  instruction: DiscountInstruction,
+) {
+  if (!instruction.code || !/^[A-Za-z0-9_-]{8,100}$/.test(instruction.code))
+    throw new Error("The reward reservation has no recovery code");
+  const amount = Number(instruction.discountAmount);
+  const minimum = Number(instruction.minimumSubtotal);
+  if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(minimum) || minimum < amount)
+    throw new Error("The reward reservation has no valid checkout limit");
+  const recover = async () => {
+    const response = await admin.graphql(`#graphql
+      query LoyaltyBasicDiscountRecovery($code: String!) {
+        codeDiscountNodeByCode(code: $code) {
+          id
+          codeDiscount { ... on DiscountCodeBasic { title } }
+        }
+      }`, { variables: { code: instruction.code } });
+    const result = await response.json();
+    if (result.errors?.length) throw new Error("Could not verify reward code issuance");
+    const existing = result.data?.codeDiscountNodeByCode;
+    if (!existing) return null;
+    if (existing.codeDiscount?.title !== `Project Loyalty ${instruction.redemptionId}`)
+      throw new Error("Reward code is already assigned to another redemption");
+    return { code: instruction.code!, discountId: existing.id as string };
+  };
+  const existing = await recover();
+  if (existing) return existing;
+  const customerGid = customerId.startsWith("gid://") ? customerId : `gid://shopify/Customer/${customerId}`;
+  try {
+    const created = await run(admin, `#graphql
+      mutation LoyaltyBasicDiscount($input: DiscountCodeBasicInput!) {
+        discountCodeBasicCreate(basicCodeDiscount: $input) {
+          codeDiscountNode { id }
+          userErrors { message field }
+        }
+      }`, { input: {
+        title: `Project Loyalty ${instruction.redemptionId}`,
+        code: instruction.code,
+        startsAt: new Date().toISOString(),
+        endsAt: instruction.expiresAt,
+        context: { customers: { add: [customerGid] } },
+        usageLimit: 1,
+        appliesOncePerCustomer: true,
+        combinesWith: { orderDiscounts: false, productDiscounts: false, shippingDiscounts: false },
+        customerGets: {
+          value: { discountAmount: { amount: instruction.discountAmount, appliesOnEachItem: false } },
+          items: { all: true },
+        },
+        minimumRequirement: { subtotal: { greaterThanOrEqualToSubtotal: instruction.minimumSubtotal } },
+      } }, "discountCodeBasicCreate");
+    return { code: instruction.code, discountId: created.codeDiscountNode.id as string };
+  } catch (error) {
+    const recovered = await recover();
+    if (recovered) return recovered;
+    throw error;
+  }
+}
