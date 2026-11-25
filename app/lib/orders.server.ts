@@ -30,6 +30,8 @@ export async function orderSnapshot(admin: Admin, orderId: string) {
     query LoyaltyOrder($id: ID!, $after: String) {
       order(id: $id) {
         id createdAt updatedAt currencyCode cancelledAt fullyPaid phone
+        shippingAddress { phone }
+        billingAddress { phone }
         displayFulfillmentStatus displayFinancialStatus discountCodes
         customer { id }
         taxesIncluded
@@ -146,7 +148,11 @@ export async function orderSnapshot(admin: Admin, orderId: string) {
     customerId: order.customer?.id
       ? String(order.customer.id).split("/").pop()
       : undefined,
-    contactPhone: order.phone ?? undefined,
+    contactPhone:
+      order.phone ||
+      order.shippingAddress?.phone ||
+      order.billingAddress?.phone ||
+      undefined,
     lineItems,
     paid:
       Boolean(order.fullyPaid) ||

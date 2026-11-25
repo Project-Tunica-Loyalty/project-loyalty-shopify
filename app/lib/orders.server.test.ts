@@ -39,6 +39,21 @@ function order(taxesIncluded = true) {
 }
 
 describe("Shopify order earning snapshot", () => {
+  it("uses the shipping phone when Shopify leaves the order phone empty", async () => {
+    const withAddressPhone = {
+      ...order(),
+      phone: null,
+      shippingAddress: { phone: "+15551234567" },
+      billingAddress: { phone: "+15557654321" },
+    };
+    const graphql = vi.fn().mockResolvedValue(
+      Response.json({ data: { order: withAddressPhone } }),
+    );
+    await expect(orderSnapshot({ graphql }, "1")).resolves.toMatchObject({
+      contactPhone: "+15551234567",
+    });
+  });
+
   it.each([true, false])(
     "separates merchandise tax from shipping tax (included=%s)",
     async (taxesIncluded) => {
