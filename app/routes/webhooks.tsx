@@ -37,10 +37,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let synced = 0;
   for (const session of sessions) {
     const { admin } = await unauthenticated.admin(session.shop);
-    const shopResponse = await admin.graphql(
-      `#graphql
-      query LoyaltyShopId { shop { id } }`,
-    );
+    let shopResponse: Response;
+    try {
+      shopResponse = await admin.graphql(
+        `#graphql
+        query LoyaltyShopId { shop { id } }`,
+      );
+    } catch (error) {
+      if ((error as { response?: { code?: number } }).response?.code === 404) {
+        console.warn(`Skipping unavailable Shopify shop ${session.shop}`);
+        continue;
+      }
+      throw error;
+    }
     const shopId = (await shopResponse.json()).data?.shop?.id as
       string | undefined;
     if (!shopId) throw new Error(`Shop ID unavailable for ${session.shop}`);
