@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { automaticDiscountTitle, LEGACY_AUTOMATIC_DISCOUNT_TITLE } from "./loyalty-discount-title.server";
 
 type Admin = {
   graphql: (
@@ -154,32 +155,35 @@ export async function deleteDiscount(admin: Admin, id: string) {
 }
 
 async function findAutomaticDiscountDetails(admin: Admin, instruction: Pick<DiscountInstruction, "checkoutToken" | "customerId"> & { redemptionId?: string }) {
-  let after: string | null = null;
-  do {
-    const response = await admin.graphql(`#graphql
+  if (!instruction.checkoutToken) return null;
+  for (const title of [automaticDiscountTitle(instruction.checkoutToken), LEGACY_AUTOMATIC_DISCOUNT_TITLE]) {
+    let after: string | null = null;
+    do {
+      const response = await admin.graphql(`#graphql
       query LoyaltyAutomaticRecovery($query: String!, $after: String) {
         discountNodes(first: 100, after: $after, query: $query) {
           nodes { id metafield(namespace: "loyalty_discount", key: "configuration") { value }
             discount { ... on DiscountAutomaticApp { title } } }
           pageInfo { hasNextPage endCursor }
         }
-      }`, { variables: { query: `title:'Project Loyalty points'`, after } });
-    const result = await response.json();
-    if (result.errors?.length) throw new Error("Could not verify automatic discount issuance");
-    const connection = result.data?.discountNodes;
-    for (const node of connection?.nodes ?? []) {
-      if (node.discount?.title !== "Project Loyalty points") continue;
-      try {
-        const configuration = JSON.parse(node.metafield?.value ?? "{}");
-        if (configuration.checkoutToken === instruction.checkoutToken &&
-          (!instruction.redemptionId || configuration.redemptionId === instruction.redemptionId) &&
-          (!instruction.customerId || configuration.customerId === instruction.customerId) &&
-          /^[0-9a-f-]{36}$/i.test(configuration.redemptionId))
-          return { id: node.id as string, redemptionId: configuration.redemptionId as string };
-      } catch { /* Ignore unrelated discounts. */ }
-    }
-    after = connection?.pageInfo?.hasNextPage ? connection.pageInfo.endCursor : null;
-  } while (after);
+      }`, { variables: { query: `title:'${title}'`, after } });
+      const result = await response.json();
+      if (result.errors?.length) throw new Error("Could not verify automatic discount issuance");
+      const connection = result.data?.discountNodes;
+      for (const node of connection?.nodes ?? []) {
+        if (node.discount?.title !== title) continue;
+        try {
+          const configuration = JSON.parse(node.metafield?.value ?? "{}");
+          if (configuration.checkoutToken === instruction.checkoutToken &&
+            (!instruction.redemptionId || configuration.redemptionId === instruction.redemptionId) &&
+            (!instruction.customerId || configuration.customerId === instruction.customerId) &&
+            /^[0-9a-f-]{36}$/i.test(configuration.redemptionId))
+            return { id: node.id as string, redemptionId: configuration.redemptionId as string };
+        } catch { /* Ignore unrelated discounts. */ }
+      }
+      after = connection?.pageInfo?.hasNextPage ? connection.pageInfo.endCursor : null;
+    } while (after);
+  }
   return null;
 }
 
@@ -219,7 +223,7 @@ export async function issueAutomaticDiscount(admin: Admin, customerId: string, i
           userErrors { message field }
         }
       }`, { input: {
-        title: "Project Loyalty points",
+        title: automaticDiscountTitle(instruction.checkoutToken),
         startsAt: new Date().toISOString(),
         endsAt: instruction.expiresAt,
         context: { customers: { add: [customerGid] } },

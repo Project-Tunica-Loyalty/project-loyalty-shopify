@@ -25,7 +25,8 @@ function LoyaltyCheckout() {
   const attributes = useAttributes();
   const discountAllocations = useDiscountAllocations();
   const cartToken = attributes.find((item) => item.key === 'project_loyalty_redemption')?.value;
-  const loyaltyApplied = discountAllocations.some((item) => item.type === 'automatic' && item.title === 'Project Loyalty points');
+  const loyaltyApplied = discountAllocations.some((item) => item.type === 'automatic' &&
+    (item.title === 'Project Loyalty points' || /^Project Loyalty points [0-9A-F]{16}$/.test(item.title ?? '')));
   const cartLines = shopify.lines.value;
 
   useEffect(() => {

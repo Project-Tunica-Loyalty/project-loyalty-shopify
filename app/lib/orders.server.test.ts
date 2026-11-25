@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { orderSnapshot } from "./orders.server";
+import { automaticDiscountTitle } from "./loyalty-discount-title.server";
 
 function order(taxesIncluded = true) {
   const money = (amount: string) => ({ shopMoney: { amount } });
@@ -48,6 +49,14 @@ describe("Shopify order earning snapshot", () => {
     const graphql = vi.fn().mockImplementation(async () => Response.json({data: {order: withDiscount}}));
     await expect(orderSnapshot({graphql}, "1")).resolves.toMatchObject({
       automaticRedemptionToken: "token-1234567890123456", automaticDiscountApplied: true,
+    });
+    withDiscount.discountApplications.nodes[0].title = automaticDiscountTitle("token-1234567890123456");
+    await expect(orderSnapshot({graphql}, "1")).resolves.toMatchObject({
+      automaticDiscountApplied: true,
+    });
+    withDiscount.discountApplications.nodes[0].title = automaticDiscountTitle("token-1234567890123457");
+    await expect(orderSnapshot({graphql}, "1")).resolves.toMatchObject({
+      automaticDiscountApplied: false,
     });
     withDiscount.discountApplications.nodes[0].title = "Another discount";
     await expect(orderSnapshot({graphql}, "1")).resolves.toMatchObject({

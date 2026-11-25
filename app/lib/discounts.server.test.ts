@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { deleteDiscount, issueAutomaticDiscount, issueBasicDiscount, issueDiscount } from "./discounts.server";
+import { automaticDiscountTitle } from "./loyalty-discount-title.server";
 const instruction = {
   redemptionId: "redemption-1",
   status: "PENDING",
@@ -37,18 +38,61 @@ describe("Shopify discount issuance", () => {
   it("creates a customer-restricted automatic points discount without a coupon", async () => {
     const graphql = vi.fn()
       .mockResolvedValueOnce(Response.json({data: {discountNodes: {nodes: [], pageInfo: {hasNextPage: false}}}}))
+      .mockResolvedValueOnce(Response.json({data: {discountNodes: {nodes: [], pageInfo: {hasNextPage: false}}}}))
       .mockResolvedValueOnce(Response.json({data: {discountAutomaticAppCreate: {
         automaticAppDiscount: {discountId: "gid://shopify/DiscountAutomaticNode/1"}, userErrors: [],
       }}}));
     await expect(issueAutomaticDiscount({graphql}, "123", {
       ...instruction, code: null, checkoutToken: "token-1234567890123456",
     })).resolves.toEqual({discountId: "gid://shopify/DiscountAutomaticNode/1"});
-    const input = graphql.mock.calls[1][1].variables.input;
+    const input = graphql.mock.calls[2][1].variables.input;
+    expect(input.title).toBe(automaticDiscountTitle("token-1234567890123456"));
+    expect(input.title).not.toBe(automaticDiscountTitle("token-1234567890123457"));
     expect(input.code).toBeUndefined();
     expect(input.context.customers.add).toEqual(["gid://shopify/Customer/123"]);
     expect(JSON.parse(input.metafields[0].value)).toMatchObject({
       checkoutToken: "token-1234567890123456", redemptionId: "redemption-1",
     });
+  });
+  it("recovers a previously created automatic discount using its unique title", async () => {
+    const checkoutToken = "token-1234567890123456";
+    const graphql = vi.fn().mockResolvedValue(Response.json({ data: { discountNodes: {
+      nodes: [{
+        id: "gid://shopify/DiscountAutomaticNode/1",
+        discount: { title: automaticDiscountTitle(checkoutToken) },
+        metafield: { value: JSON.stringify({
+          checkoutToken, redemptionId: "12345678-1234-1234-1234-123456789abc",
+          customerId: "gid://shopify/Customer/123",
+        }) },
+      }], pageInfo: { hasNextPage: false },
+    } } }));
+    await expect(issueAutomaticDiscount({ graphql }, "123", {
+      ...instruction, redemptionId: "12345678-1234-1234-1234-123456789abc",
+      checkoutToken,
+    })).resolves.toEqual({ discountId: "gid://shopify/DiscountAutomaticNode/1" });
+    expect(graphql).toHaveBeenCalledTimes(1);
+  });
+  it("still finds a legacy automatic discount for release after deployment", async () => {
+    const checkoutToken = "token-1234567890123456";
+    const graphql = vi.fn()
+      .mockResolvedValueOnce(Response.json({ data: { discountNodes: {
+        nodes: [], pageInfo: { hasNextPage: false },
+      } } }))
+      .mockResolvedValueOnce(Response.json({ data: { discountNodes: {
+        nodes: [{
+          id: "gid://shopify/DiscountAutomaticNode/2",
+          discount: { title: "Project Loyalty points" },
+          metafield: { value: JSON.stringify({
+            checkoutToken, redemptionId: "12345678-1234-1234-1234-123456789abc",
+            customerId: "gid://shopify/Customer/123",
+          }) },
+        }], pageInfo: { hasNextPage: false },
+      } } }));
+    await expect(issueAutomaticDiscount({ graphql }, "123", {
+      ...instruction, redemptionId: "12345678-1234-1234-1234-123456789abc",
+      checkoutToken,
+    })).resolves.toEqual({ discountId: "gid://shopify/DiscountAutomaticNode/2" });
+    expect(graphql).toHaveBeenCalledTimes(2);
   });
   it("creates a one-use customer-restricted native cart discount", async () => {
     const graphql = vi.fn()

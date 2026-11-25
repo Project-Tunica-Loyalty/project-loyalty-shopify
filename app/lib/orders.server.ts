@@ -1,3 +1,5 @@
+import { automaticDiscountTitle, LEGACY_AUTOMATIC_DISCOUNT_TITLE } from "./loyalty-discount-title.server";
+
 type Admin = {
   graphql: (
     query: string,
@@ -184,10 +186,12 @@ export async function orderSnapshot(admin: Admin, orderId: string) {
       .filter((id): id is string => Boolean(id)),
     discountCodes: order.discountCodes as string[],
     automaticRedemptionToken,
-    automaticDiscountApplied: Boolean(automaticRedemptionToken) && (order.discountApplications?.nodes ?? []).some(
+    automaticDiscountApplied: Boolean(automaticRedemptionToken && (order.discountApplications?.nodes ?? []).some(
       (discount: { __typename: string; title?: string }) =>
-        discount.__typename === "AutomaticDiscountApplication" && discount.title === "Project Loyalty points",
-    ),
+        discount.__typename === "AutomaticDiscountApplication" &&
+        (discount.title === LEGACY_AUTOMATIC_DISCOUNT_TITLE ||
+          discount.title === automaticDiscountTitle(automaticRedemptionToken)),
+    )),
     occurredAt: order.createdAt as string,
     sourceUpdatedAt: order.updatedAt as string,
   };
