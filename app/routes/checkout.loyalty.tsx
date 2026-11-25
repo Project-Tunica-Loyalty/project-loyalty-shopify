@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { authenticate, unauthenticated } from "../shopify.server";
 import { identityPath, loyaltyApi, LoyaltyApiError } from "../lib/loyalty-api.server";
-import { issueAutomaticDiscount, findAutomaticDiscount, deactivateDiscount, type DiscountInstruction } from "../lib/discounts.server";
+import { issueAutomaticDiscount, findAutomaticDiscountForRelease, deactivateDiscount, deleteDiscount, type DiscountInstruction } from "../lib/discounts.server";
 
 async function checkoutContext(request: Request) {
   const { sessionToken, cors } = await authenticate.public.checkout(request);
@@ -19,7 +19,7 @@ async function checkoutContext(request: Request) {
   if (!info?.id) throw new Response("Shop unavailable", { status: 503 });
   return {
     cors, admin, customerId, shopId: String(info.id), shopDomain: shop,
-    compatible: Boolean(info.plan?.shopifyPlus || info.plan?.partnerDevelopment),
+    compatible: Boolean(info.plan?.shopifyPlus),
   };
 }
 
@@ -88,16 +88,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (body.action === "RELEASE") {
     const checkoutToken = String(body.checkoutToken ?? "");
     const redemptionId = String(body.redemptionId ?? "");
-    if (!/^[A-Za-z0-9_-]{16,100}$/.test(checkoutToken) || !/^[0-9a-f-]{36}$/i.test(redemptionId))
+    if (!/^[A-Za-z0-9_-]{16,100}$/.test(checkoutToken) ||
+        (redemptionId && !/^[0-9a-f-]{36}$/i.test(redemptionId)))
       return result(cors, { error: "Invalid reward release" }, 400);
     try {
-      const id = await findAutomaticDiscount(admin, {
-        checkoutToken, redemptionId, customerId: `gid://shopify/Customer/${customerId}`,
-      } as DiscountInstruction);
-      if (!id) return result(cors, { error: "Reward discount could not be verified" }, 409);
-      await deactivateDiscount(admin, id);
+      const discount = await findAutomaticDiscountForRelease(
+        admin, checkoutToken, `gid://shopify/Customer/${customerId}`,
+      );
+      if (discount && redemptionId && discount.redemptionId !== redemptionId)
+        return result(cors, { error: "Reward reservation does not match" }, 409);
+      if (!discount && !redemptionId)
+        return result(cors, { error: "Reward discount could not be verified" }, 409);
+      if (discount) await deleteDiscount(admin, discount.id);
       await loyaltyApi("POST", "/integrations/shopify/redemptions", {
-        shopId, customerId, action: "FAILED", redemptionId,
+        shopId, customerId, action: "FAILED", redemptionId: discount?.redemptionId ?? redemptionId,
       });
       return result(cors, { released: true });
     } catch (error) {

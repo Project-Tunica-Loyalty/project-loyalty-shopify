@@ -49,8 +49,6 @@ async function createDiscount(
   customerId: string,
   instruction: DiscountInstruction,
 ) {
-  if (instruction.status === "ACTIVE" && instruction.code)
-    return { code: instruction.code, discountId: "" };
   const customerGid = customerId.startsWith("gid://")
     ? customerId
     : `gid://shopify/Customer/${customerId}`;
@@ -129,7 +127,27 @@ export async function deactivateDiscount(admin: Admin, id: string) {
   );
 }
 
-export async function findAutomaticDiscount(admin: Admin, instruction: DiscountInstruction) {
+export async function deleteDiscount(admin: Admin, id: string) {
+  if (id.startsWith("gid://shopify/DiscountAutomaticNode/")) {
+    const deleted = await run(admin, `#graphql
+      mutation LoyaltyAutomaticDelete($id: ID!) {
+        discountAutomaticDelete(id: $id) { deletedAutomaticDiscountId userErrors { message field } }
+      }`, { id }, "discountAutomaticDelete");
+    if (deleted.deletedAutomaticDiscountId !== id)
+      throw new Error("Shopify did not delete the loyalty discount");
+    return;
+  }
+  if (!id.startsWith("gid://shopify/DiscountCodeNode/"))
+    throw new Error("Invalid loyalty discount ID");
+  const deleted = await run(admin, `#graphql
+    mutation LoyaltyCodeDelete($id: ID!) {
+      discountCodeDelete(id: $id) { deletedCodeDiscountId userErrors { message field } }
+    }`, { id }, "discountCodeDelete");
+  if (deleted.deletedCodeDiscountId !== id)
+    throw new Error("Shopify did not delete the loyalty code");
+}
+
+async function findAutomaticDiscountDetails(admin: Admin, instruction: Pick<DiscountInstruction, "checkoutToken" | "customerId"> & { redemptionId?: string }) {
   let after: string | null = null;
   do {
     const response = await admin.graphql(`#graphql
@@ -148,14 +166,23 @@ export async function findAutomaticDiscount(admin: Admin, instruction: DiscountI
       try {
         const configuration = JSON.parse(node.metafield?.value ?? "{}");
         if (configuration.checkoutToken === instruction.checkoutToken &&
-          configuration.redemptionId === instruction.redemptionId &&
-          (!instruction.customerId || configuration.customerId === instruction.customerId))
-          return node.id as string;
+          (!instruction.redemptionId || configuration.redemptionId === instruction.redemptionId) &&
+          (!instruction.customerId || configuration.customerId === instruction.customerId) &&
+          /^[0-9a-f-]{36}$/i.test(configuration.redemptionId))
+          return { id: node.id as string, redemptionId: configuration.redemptionId as string };
       } catch { /* Ignore unrelated discounts. */ }
     }
     after = connection?.pageInfo?.hasNextPage ? connection.pageInfo.endCursor : null;
   } while (after);
   return null;
+}
+
+export async function findAutomaticDiscount(admin: Admin, instruction: DiscountInstruction) {
+  return (await findAutomaticDiscountDetails(admin, instruction))?.id ?? null;
+}
+
+export async function findAutomaticDiscountForRelease(admin: Admin, checkoutToken: string, customerId: string) {
+  return findAutomaticDiscountDetails(admin, { checkoutToken, customerId });
 }
 
 export async function issueAutomaticDiscount(admin: Admin, customerId: string, instruction: DiscountInstruction) {
@@ -243,6 +270,8 @@ export async function issueDiscount(
   };
   const existing = await recover();
   if (existing) return existing;
+  if (instruction.status === "ACTIVE")
+    throw new Error("The active loyalty coupon could not be found in Shopify");
   try {
     return await createDiscount(admin, customerId, instruction);
   } catch (error) {

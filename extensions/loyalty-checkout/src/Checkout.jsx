@@ -29,6 +29,15 @@ function LoyaltyCheckout() {
   const cartLines = shopify.lines.value;
 
   useEffect(() => {
+    if (!cartToken) return;
+    let alive = true;
+    shopify.storage.read('project-loyalty-redemption').then((saved) => {
+      if (alive && saved?.checkoutToken === cartToken) setActiveRedemptionId(saved.redemptionId);
+    }).catch(() => { /* Shopify may clear checkout session storage. */ });
+    return () => { alive = false; };
+  }, [cartToken]);
+
+  useEffect(() => {
     if (!customerId) {
       setData(null);
       return;
@@ -79,6 +88,9 @@ function LoyaltyCheckout() {
       issued = result;
       const change = await shopify.applyAttributeChange({type: 'updateAttribute', key: 'project_loyalty_redemption', value: result.checkoutToken});
       if (change.type !== 'success') throw new Error('The points request could not be added to checkout. Try again.');
+      await shopify.storage.write('project-loyalty-redemption', {
+        checkoutToken: result.checkoutToken, redemptionId: result.redemptionId,
+      }).catch(() => { /* The app can recover the reservation from its discount. */ });
       setActiveToken(result.checkoutToken);
       setActiveRedemptionId(result.redemptionId);
       setMessage('Points requested. Check the order summary for the Project Loyalty discount before placing the order.');
@@ -103,16 +115,19 @@ function LoyaltyCheckout() {
     setBusy(true);
     setMessage('');
     try {
-      const change = await shopify.applyAttributeChange({type: 'removeAttribute', key: 'project_loyalty_redemption'});
-      if (change.type !== 'success') throw new Error('Could not remove the points request.');
-      if (activeRedemptionId && (cartToken || activeToken)) {
+      if (cartToken || activeToken) {
         const token = await shopify.sessionToken.get();
-        await fetch(API, {
+        const response = await fetch(API, {
           method: 'POST',
           headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`},
-          body: JSON.stringify({action: 'RELEASE', redemptionId: activeRedemptionId, checkoutToken: cartToken || activeToken}),
+          body: JSON.stringify({action: 'RELEASE', redemptionId: activeRedemptionId || undefined, checkoutToken: cartToken || activeToken}),
         });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Could not release points. Try again.');
       }
+      const change = await shopify.applyAttributeChange({type: 'removeAttribute', key: 'project_loyalty_redemption'});
+      if (change.type !== 'success') throw new Error('Could not remove the points request. Try again.');
+      await shopify.storage.delete('project-loyalty-redemption').catch(() => {});
       setActiveToken('');
       setActiveRedemptionId('');
       setMessage('Points request removed.');

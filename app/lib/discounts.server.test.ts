@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { issueAutomaticDiscount, issueBasicDiscount, issueDiscount } from "./discounts.server";
+import { deleteDiscount, issueAutomaticDiscount, issueBasicDiscount, issueDiscount } from "./discounts.server";
 const instruction = {
   redemptionId: "redemption-1",
   status: "PENDING",
@@ -11,6 +11,20 @@ const instruction = {
   expiresAt: "2030-01-01T00:00:00.000Z",
 };
 describe("Shopify discount issuance", () => {
+  it("deletes a cancelled code discount", async () => {
+    const graphql = vi.fn().mockResolvedValue(Response.json({ data: { discountCodeDelete: {
+      deletedCodeDiscountId: "gid://shopify/DiscountCodeNode/1", userErrors: [],
+    } } }));
+    await deleteDiscount({ graphql }, "gid://shopify/DiscountCodeNode/1");
+    expect(graphql.mock.calls[0][0]).toContain("discountCodeDelete");
+  });
+  it("deletes a cancelled automatic discount", async () => {
+    const graphql = vi.fn().mockResolvedValue(Response.json({ data: { discountAutomaticDelete: {
+      deletedAutomaticDiscountId: "gid://shopify/DiscountAutomaticNode/1", userErrors: [],
+    } } }));
+    await deleteDiscount({ graphql }, "gid://shopify/DiscountAutomaticNode/1");
+    expect(graphql.mock.calls[0][0]).toContain("discountAutomaticDelete");
+  });
   it("creates a customer-restricted automatic points discount without a coupon", async () => {
     const graphql = vi.fn()
       .mockResolvedValueOnce(Response.json({data: {discountNodes: {nodes: [], pageInfo: {hasNextPage: false}}}}))

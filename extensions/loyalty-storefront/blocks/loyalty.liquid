@@ -1,12 +1,18 @@
-<div class="project-loyalty" data-loyalty-block>
+<div class="project-loyalty" data-loyalty-block data-loyalty-customer-id="{% if customer %}{{ customer.id }}{% endif %}">
   {% if customer %}
     <h2>{{ block.settings.heading | escape }}</h2>
     <p data-loyalty-status>Loading your points…</p>
     {% if request.page_type == 'cart' %}
       <form data-loyalty-redeem hidden>
         <label>Points to use <input name="points" type="number" min="1" step="1" inputmode="numeric" required></label>
-        <button type="submit">Use points at checkout</button>
+        <button type="submit">Create loyalty coupon</button>
       </form>
+      <div data-loyalty-coupon hidden>
+        <p>Your loyalty coupon: <strong data-loyalty-code></strong></p>
+        <p>Apply it at checkout using the same verified phone on your delivery or billing address. If you remove the code there, return to this cart and cancel it to release your points.</p>
+        <button type="button" data-loyalty-apply>Apply at checkout</button>
+        <button type="button" data-loyalty-cancel>Cancel coupon</button>
+      </div>
     {% endif %}
     <div data-loyalty-link hidden>
       <details>

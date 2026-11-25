@@ -29,6 +29,23 @@
     let signupToken = "";
     let termsVersion = "";
     let availablePoints = 0;
+    const couponKey = `project-loyalty-coupon:${block.dataset.loyaltyCustomerId}`;
+    const readCoupon = () => {
+      try {
+        const coupon = JSON.parse(sessionStorage.getItem(couponKey) || "null");
+        if (coupon?.code && coupon?.cancelToken && Date.parse(coupon.expiresAt) > Date.now())
+          return coupon;
+        sessionStorage.removeItem(couponKey);
+      } catch { /* Storage may be unavailable in a private browser. */ }
+      return null;
+    };
+    let coupon = readCoupon();
+    const showCoupon = () => {
+      const panel = find("coupon");
+      if (!panel) return;
+      panel.hidden = !coupon;
+      if (coupon) find("code").textContent = coupon.code;
+    };
     const load = async () => {
       const balanceResponse = await fetch(api, { credentials: "same-origin" });
       const balance = await balanceResponse.json();
@@ -52,10 +69,12 @@
       const available = balance.balance?.currentPoints ?? 0;
       availablePoints = Number(available);
       const redeem = find("redeem");
-      if (redeem && Number.isFinite(availablePoints) && availablePoints > 0) {
+      if (redeem && !balance.checkoutRedemptionAvailable && !coupon &&
+          Number.isFinite(availablePoints) && availablePoints > 0) {
         redeem.hidden = false;
         redeem.elements.points.max = String(Math.floor(availablePoints));
       } else if (redeem) redeem.hidden = true;
+      showCoupon();
       status(balance.balance?.showStorefrontBalance
         ? `${available} points available`
         : "Your loyalty account is connected.");
@@ -181,11 +200,35 @@
         const idempotencyKey = redeem.dataset.idempotencyKey || crypto.randomUUID().replace(/-/g, "");
         redeem.dataset.idempotencyKey = idempotencyKey;
         const result = await post({ intent: "redeem", points, cartSubtotal, idempotencyKey });
-        status("Applying your points at checkout...");
-        window.location.assign(`/discount/${encodeURIComponent(result.code)}?redirect=/checkout`);
+        coupon = result;
+        try { sessionStorage.setItem(couponKey, JSON.stringify(coupon)); } catch { /* The coupon remains visible on this page. */ }
+        redeem.hidden = true;
+        showCoupon();
+        status("Your coupon is ready. Apply it at checkout or cancel it here.");
       } catch (error) {
         status(error.message);
         button.disabled = false;
+      }
+    });
+    find("apply")?.addEventListener("click", () => {
+      if (!coupon) return;
+      window.location.assign(`/discount/${encodeURIComponent(coupon.code)}?redirect=/checkout`);
+    });
+    find("cancel")?.addEventListener("click", async (event) => {
+      if (!coupon) return;
+      event.target.disabled = true;
+      try {
+        await post({ intent: "cancel", cancelToken: coupon.cancelToken });
+        coupon = null;
+        try { sessionStorage.removeItem(couponKey); } catch { /* Storage may be unavailable. */ }
+        redeem.dataset.idempotencyKey = "";
+        showCoupon();
+        await load();
+        status("Loyalty coupon deleted and points released.");
+      } catch (error) {
+        status(error.message);
+      } finally {
+        event.target.disabled = false;
       }
     });
     load().catch((error) => status(error.message));
