@@ -1,5 +1,6 @@
 query CartInput {
   cart {
+    attribute(key: "project_loyalty_redemption") { value }
     buyerIdentity {
       isAuthenticated
       phone

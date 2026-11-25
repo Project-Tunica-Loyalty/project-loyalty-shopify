@@ -1,5 +1,5 @@
 import '@shopify/ui-extensions/preact';
-import {useBillingAddress, useCustomer, usePhone, useShippingAddress} from '@shopify/ui-extensions/checkout/preact';
+import {useAttributes, useBillingAddress, useCustomer, useDiscountAllocations, usePhone, useShippingAddress} from '@shopify/ui-extensions/checkout/preact';
 import {render} from 'preact';
 import {useEffect, useState} from 'preact/hooks';
 import {LoyaltyAccess} from './LoyaltyAccess.jsx';
@@ -18,9 +18,14 @@ function LoyaltyCheckout() {
   const [points, setPoints] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
-  const [activeCode, setActiveCode] = useState('');
+  const [activeToken, setActiveToken] = useState('');
+  const [activeRedemptionId, setActiveRedemptionId] = useState('');
   const [refreshIndex, setRefreshIndex] = useState(0);
-  const canApply = shopify.instructions.value.discounts.canUpdateDiscountCodes;
+  const canApply = shopify.instructions.value.attributes.canUpdateAttributes;
+  const attributes = useAttributes();
+  const discountAllocations = useDiscountAllocations();
+  const cartToken = attributes.find((item) => item.key === 'project_loyalty_redemption')?.value;
+  const loyaltyApplied = discountAllocations.some((item) => item.type === 'automatic' && item.title === 'Project Loyalty points');
   const cartLines = shopify.lines.value;
 
   useEffect(() => {
@@ -51,7 +56,7 @@ function LoyaltyCheckout() {
   const rewards = (data.rewards?.products ?? []).filter((reward) =>
     cartLines.some((line) => line.merchandise?.id === reward.variantId));
   const canRedeem = data.compatible && canApply && checkoutPhone &&
-    data.balance?.hasVerifiedPhone && !activeCode && shopify.discountCodes.value.length === 0;
+    data.balance?.hasVerifiedPhone && !cartToken && !activeToken && shopify.discountCodes.value.length === 0;
 
   async function apply(kind, rewardProductId) {
     setBusy(true);
@@ -72,18 +77,19 @@ function LoyaltyCheckout() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not reserve points.');
       issued = result;
-      const change = await shopify.applyDiscountCodeChange({type: 'addDiscountCode', code: result.code});
-      if (change.type !== 'success') throw new Error('The discount could not be applied. Try again before placing the order.');
-      setActiveCode(result.code);
-      setMessage('Points applied to this checkout. They will be deducted when you place the order.');
+      const change = await shopify.applyAttributeChange({type: 'updateAttribute', key: 'project_loyalty_redemption', value: result.checkoutToken});
+      if (change.type !== 'success') throw new Error('The points request could not be added to checkout. Try again.');
+      setActiveToken(result.checkoutToken);
+      setActiveRedemptionId(result.redemptionId);
+      setMessage('Points requested. Check the order summary for the Project Loyalty discount before placing the order.');
     } catch (error) {
-      if (issued?.redemptionId && issued?.code) {
+      if (issued?.redemptionId && issued?.checkoutToken) {
         try {
           const token = await shopify.sessionToken.get();
           await fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`},
-            body: JSON.stringify({action: 'RELEASE', redemptionId: issued.redemptionId, code: issued.code}),
+            body: JSON.stringify({action: 'RELEASE', redemptionId: issued.redemptionId, checkoutToken: issued.checkoutToken}),
           });
         } catch { /* The reservation expires automatically. */ }
       }
@@ -93,13 +99,39 @@ function LoyaltyCheckout() {
     }
   }
 
+  async function removePoints() {
+    setBusy(true);
+    setMessage('');
+    try {
+      const change = await shopify.applyAttributeChange({type: 'removeAttribute', key: 'project_loyalty_redemption'});
+      if (change.type !== 'success') throw new Error('Could not remove the points request.');
+      if (activeRedemptionId && (cartToken || activeToken)) {
+        const token = await shopify.sessionToken.get();
+        await fetch(API, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`},
+          body: JSON.stringify({action: 'RELEASE', redemptionId: activeRedemptionId, checkoutToken: cartToken || activeToken}),
+        });
+      }
+      setActiveToken('');
+      setActiveRedemptionId('');
+      setMessage('Points request removed.');
+    } catch (error) {
+      setMessage(error.message || 'Could not remove points.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return <s-section heading="Project Loyalty points">
     <s-stack gap="base">
       <s-text>{available} points available</s-text>
       {!data.compatible && <s-banner tone="warning">Points redemption requires a Plus checkout.</s-banner>}
-      {!checkoutPhone && <s-banner tone="info">Add your linked phone to the checkout contact or delivery address to use points.</s-banner>}
-      {!canApply && <s-banner tone="warning">This checkout does not allow discount changes, so points cannot be applied here.</s-banner>}
+      {!checkoutPhone && <s-banner tone="info">Add the phone linked to your loyalty account to the delivery or billing address to use points. The number must match the one verified when you joined loyalty.</s-banner>}
+      {!canApply && <s-banner tone="warning">This checkout does not allow cart updates, so points cannot be applied here.</s-banner>}
       {shopify.discountCodes.value.length > 0 && <s-banner tone="info">Remove the existing discount code before applying loyalty points.</s-banner>}
+      {cartToken && <s-banner tone={loyaltyApplied ? 'success' : 'info'}>{loyaltyApplied ? 'Project Loyalty discount is included in your order summary. Points are deducted when the order is placed.' : 'Your points request is being checked. Place the order only when the Project Loyalty discount appears in the order summary.'}</s-banner>}
+      {cartToken && canApply && <s-button disabled={busy} onClick={removePoints}>Remove points request</s-button>}
       {data.rewards?.redemptionType === 'PARTIAL' && <s-stack gap="base">
         <s-number-field label="Points to apply" value={points} min={1} max={available}
           onChange={(event) => setPoints(String('value' in event.currentTarget ? event.currentTarget.value : ''))} />
@@ -111,7 +143,7 @@ function LoyaltyCheckout() {
         onClick={() => apply('PRODUCT', reward.id)}>
         Redeem {reward.title} for {reward.pointsCost} points
       </s-button>)}
-      {message && <s-banner tone={activeCode ? 'success' : 'warning'}>{message}</s-banner>}
+      {message && <s-banner tone={activeToken ? 'info' : 'warning'}>{message}</s-banner>}
     </s-stack>
   </s-section>;
 }

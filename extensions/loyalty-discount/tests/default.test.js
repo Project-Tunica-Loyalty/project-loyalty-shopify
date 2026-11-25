@@ -33,6 +33,7 @@ describe("Project Loyalty product discount", () => {
       const fixture = await loadFixture(fixtureFile);
       fixture.input.cart.deliveryGroups ??= [];
       fixture.input.cart.billingAddress ??= null;
+      fixture.input.cart.attribute ??= null;
       const targetInputQueryPath = targeting[fixture.target].inputQueryPath;
       const inputQueryAST = await loadInputQuery(targetInputQueryPath);
 
@@ -45,5 +46,22 @@ describe("Project Loyalty product discount", () => {
       expect(runResult.error).toBeNull();
       expect(runResult.result.output).toEqual(fixture.expectedOutput);
     }, 10000);
+  });
+
+  test('automatic points require the matching checkout token', async () => {
+    const fixture = await loadFixture(path.join(fixturesDir, 'loyalty-order-points.json'));
+    fixture.input.cart.deliveryGroups = [];
+    fixture.input.cart.billingAddress = null;
+    fixture.input.cart.attribute = {value: 'token-1234567890123456'};
+    fixture.input.discount.metafield.value = JSON.stringify({
+      ...JSON.parse(fixture.input.discount.metafield.value),
+      checkoutToken: 'token-1234567890123456',
+    });
+    const queryPath = targeting[fixture.target].inputQueryPath;
+    const matching = await runFunction(fixture, functionRunnerPath, wasmPath, queryPath, schemaPath);
+    expect(matching.result.output).toEqual(fixture.expectedOutput);
+    fixture.input.cart.attribute.value = 'different-token-123456';
+    const mismatched = await runFunction(fixture, functionRunnerPath, wasmPath, queryPath, schemaPath);
+    expect(mismatched.result.output).toEqual({operations: []});
   });
 });

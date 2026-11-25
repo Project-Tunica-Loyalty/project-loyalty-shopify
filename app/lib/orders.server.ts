@@ -33,6 +33,11 @@ export async function orderSnapshot(admin: Admin, orderId: string) {
         shippingAddress { phone }
         billingAddress { phone }
         displayFulfillmentStatus displayFinancialStatus discountCodes
+        customAttributes { key value }
+        discountApplications(first: 20) { nodes {
+          __typename
+          ... on AutomaticDiscountApplication { title }
+        } }
         customer { id }
         taxesIncluded
         subtotalPriceSet { shopMoney { amount } }
@@ -143,6 +148,10 @@ export async function orderSnapshot(admin: Admin, orderId: string) {
     money(order.currentSubtotalPriceSet) -
     (order.taxesIncluded ? currentItemTax : 0);
   const refund = Math.max(0, original - current);
+  const automaticRedemptionToken = (order.customAttributes ?? []).find(
+    (attribute: { key: string; value: string }) => attribute.key === "project_loyalty_redemption" &&
+      /^[A-Za-z0-9_-]{16,100}$/.test(attribute.value),
+  )?.value as string | undefined;
   return {
     orderId: order.id as string,
     customerId: order.customer?.id
@@ -174,6 +183,11 @@ export async function orderSnapshot(admin: Admin, orderId: string) {
       .map((line) => line.lineItem?.variant?.id)
       .filter((id): id is string => Boolean(id)),
     discountCodes: order.discountCodes as string[],
+    automaticRedemptionToken,
+    automaticDiscountApplied: Boolean(automaticRedemptionToken) && (order.discountApplications?.nodes ?? []).some(
+      (discount: { __typename: string; title?: string }) =>
+        discount.__typename === "AutomaticDiscountApplication" && discount.title === "Project Loyalty points",
+    ),
     occurredAt: order.createdAt as string,
     sourceUpdatedAt: order.updatedAt as string,
   };

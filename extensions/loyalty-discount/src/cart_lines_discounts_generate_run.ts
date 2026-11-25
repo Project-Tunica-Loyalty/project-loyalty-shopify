@@ -19,12 +19,15 @@ export function cartLinesDiscountsGenerateRun(
     variantId?: string;
     amount?: string;
     minimumSubtotal?: string;
+    checkoutToken?: string;
   };
   try {
     config = JSON.parse(input.discount.metafield?.value ?? "");
   } catch {
     return empty;
   }
+  if (config.checkoutToken && input.cart.attribute?.value !== config.checkoutToken)
+    return empty;
   const buyer = input.cart.buyerIdentity;
   const phone = (value: string | null | undefined) =>
     value?.startsWith("+") ? value.replace(/\D/g, "") : null;

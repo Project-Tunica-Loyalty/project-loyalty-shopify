@@ -39,6 +39,21 @@ function order(taxesIncluded = true) {
 }
 
 describe("Shopify order earning snapshot", () => {
+  it("reports an automatic redemption only when Shopify applied the loyalty discount", async () => {
+    const withDiscount = {
+      ...order(),
+      customAttributes: [{key: "project_loyalty_redemption", value: "token-1234567890123456"}],
+      discountApplications: {nodes: [{__typename: "AutomaticDiscountApplication", title: "Project Loyalty points"}]},
+    };
+    const graphql = vi.fn().mockImplementation(async () => Response.json({data: {order: withDiscount}}));
+    await expect(orderSnapshot({graphql}, "1")).resolves.toMatchObject({
+      automaticRedemptionToken: "token-1234567890123456", automaticDiscountApplied: true,
+    });
+    withDiscount.discountApplications.nodes[0].title = "Another discount";
+    await expect(orderSnapshot({graphql}, "1")).resolves.toMatchObject({
+      automaticDiscountApplied: false,
+    });
+  });
   it("uses the shipping phone when Shopify leaves the order phone empty", async () => {
     const withAddressPhone = {
       ...order(),

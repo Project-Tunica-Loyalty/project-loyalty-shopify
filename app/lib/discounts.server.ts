@@ -16,6 +16,9 @@ export type DiscountInstruction = {
   expiresAt: string;
   minimumSubtotal: string;
   verifiedPhone: string;
+  checkoutToken?: string | null;
+  discountId?: string | null;
+  customerId?: string;
 };
 
 const code = () => `PL${randomBytes(18).toString("hex").toUpperCase()}`;
@@ -108,6 +111,13 @@ async function createDiscount(
 }
 
 export async function deactivateDiscount(admin: Admin, id: string) {
+  if (id.includes("DiscountAutomaticNode")) {
+    await run(admin, `#graphql
+      mutation LoyaltyAutomaticDeactivate($id: ID!) {
+        discountAutomaticDeactivate(id: $id) { automaticDiscountNode { id } userErrors { message field } }
+      }`, { id }, "discountAutomaticDeactivate");
+    return;
+  }
   await run(
     admin,
     `#graphql
@@ -117,6 +127,80 @@ export async function deactivateDiscount(admin: Admin, id: string) {
     { id },
     "discountCodeDeactivate",
   );
+}
+
+export async function findAutomaticDiscount(admin: Admin, instruction: DiscountInstruction) {
+  let after: string | null = null;
+  do {
+    const response = await admin.graphql(`#graphql
+      query LoyaltyAutomaticRecovery($query: String!, $after: String) {
+        discountNodes(first: 100, after: $after, query: $query) {
+          nodes { id metafield(namespace: "loyalty_discount", key: "configuration") { value }
+            discount { ... on DiscountAutomaticApp { title } } }
+          pageInfo { hasNextPage endCursor }
+        }
+      }`, { variables: { query: `title:'Project Loyalty points'`, after } });
+    const result = await response.json();
+    if (result.errors?.length) throw new Error("Could not verify automatic discount issuance");
+    const connection = result.data?.discountNodes;
+    for (const node of connection?.nodes ?? []) {
+      if (node.discount?.title !== "Project Loyalty points") continue;
+      try {
+        const configuration = JSON.parse(node.metafield?.value ?? "{}");
+        if (configuration.checkoutToken === instruction.checkoutToken &&
+          configuration.redemptionId === instruction.redemptionId &&
+          (!instruction.customerId || configuration.customerId === instruction.customerId))
+          return node.id as string;
+      } catch { /* Ignore unrelated discounts. */ }
+    }
+    after = connection?.pageInfo?.hasNextPage ? connection.pageInfo.endCursor : null;
+  } while (after);
+  return null;
+}
+
+export async function issueAutomaticDiscount(admin: Admin, customerId: string, instruction: DiscountInstruction) {
+  if (!instruction.checkoutToken || !/^[A-Za-z0-9_-]{16,100}$/.test(instruction.checkoutToken))
+    throw new Error("The automatic reservation has no checkout token");
+  if (!/^\+\d{8,15}$/.test(instruction.verifiedPhone))
+    throw new Error("The reward reservation has no verified phone");
+  if (instruction.status === "ACTIVE" && instruction.discountId)
+    return { discountId: instruction.discountId };
+  const existing = await findAutomaticDiscount(admin, instruction);
+  if (existing) return { discountId: existing };
+  const customerGid = customerId.startsWith("gid://") ? customerId : `gid://shopify/Customer/${customerId}`;
+  const configuration = JSON.stringify({
+    kind: instruction.variantId ? "PRODUCT" : "ORDER",
+    customerId: customerGid,
+    verifiedPhone: instruction.verifiedPhone,
+    variantId: instruction.variantId,
+    amount: instruction.discountAmount,
+    minimumSubtotal: instruction.minimumSubtotal,
+    checkoutToken: instruction.checkoutToken,
+    redemptionId: instruction.redemptionId,
+  });
+  try {
+    const created = await run(admin, `#graphql
+      mutation LoyaltyAutomaticDiscount($input: DiscountAutomaticAppInput!) {
+        discountAutomaticAppCreate(automaticAppDiscount: $input) {
+          automaticAppDiscount { discountId }
+          userErrors { message field }
+        }
+      }`, { input: {
+        title: "Project Loyalty points",
+        startsAt: new Date().toISOString(),
+        endsAt: instruction.expiresAt,
+        context: { customers: { add: [customerGid] } },
+        combinesWith: { orderDiscounts: false, productDiscounts: false, shippingDiscounts: false },
+        functionHandle: "loyalty-discount",
+        discountClasses: [instruction.variantId ? "PRODUCT" : "ORDER"],
+        metafields: [{ namespace: "loyalty_discount", key: "configuration", type: "json", value: configuration }],
+      } }, "discountAutomaticAppCreate");
+    return { discountId: created.automaticAppDiscount.discountId as string };
+  } catch (error) {
+    const recovered = await findAutomaticDiscount(admin, instruction);
+    if (recovered) return { discountId: recovered };
+    throw error;
+  }
 }
 
 export async function issueDiscount(

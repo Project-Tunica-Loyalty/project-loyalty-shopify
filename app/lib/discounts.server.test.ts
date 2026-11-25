@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { issueBasicDiscount, issueDiscount } from "./discounts.server";
+import { issueAutomaticDiscount, issueBasicDiscount, issueDiscount } from "./discounts.server";
 const instruction = {
   redemptionId: "redemption-1",
   status: "PENDING",
@@ -11,6 +11,22 @@ const instruction = {
   expiresAt: "2030-01-01T00:00:00.000Z",
 };
 describe("Shopify discount issuance", () => {
+  it("creates a customer-restricted automatic points discount without a coupon", async () => {
+    const graphql = vi.fn()
+      .mockResolvedValueOnce(Response.json({data: {discountNodes: {nodes: [], pageInfo: {hasNextPage: false}}}}))
+      .mockResolvedValueOnce(Response.json({data: {discountAutomaticAppCreate: {
+        automaticAppDiscount: {discountId: "gid://shopify/DiscountAutomaticNode/1"}, userErrors: [],
+      }}}));
+    await expect(issueAutomaticDiscount({graphql}, "123", {
+      ...instruction, code: null, checkoutToken: "token-1234567890123456",
+    })).resolves.toEqual({discountId: "gid://shopify/DiscountAutomaticNode/1"});
+    const input = graphql.mock.calls[1][1].variables.input;
+    expect(input.code).toBeUndefined();
+    expect(input.context.customers.add).toEqual(["gid://shopify/Customer/123"]);
+    expect(JSON.parse(input.metafields[0].value)).toMatchObject({
+      checkoutToken: "token-1234567890123456", redemptionId: "redemption-1",
+    });
+  });
   it("creates a one-use customer-restricted native cart discount", async () => {
     const graphql = vi.fn()
       .mockResolvedValueOnce(Response.json({ data: { codeDiscountNodeByCode: null } }))
