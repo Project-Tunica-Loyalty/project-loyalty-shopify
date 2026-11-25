@@ -28,12 +28,17 @@ export function cartLinesDiscountsGenerateRun(
   const buyer = input.cart.buyerIdentity;
   const phone = (value: string | null | undefined) =>
     value?.startsWith("+") ? value.replace(/\D/g, "") : null;
+  const verifiedPhone = phone(config.verifiedPhone);
+  const checkoutPhones = [
+    buyer?.phone,
+    ...input.cart.deliveryGroups.map((group) => group.deliveryAddress?.phone),
+  ];
   if (
     !buyer?.isAuthenticated ||
     !buyer.customer?.id ||
     buyer.customer.id !== config.customerId ||
-    !phone(buyer.phone) ||
-    phone(buyer.phone) !== phone(config.verifiedPhone)
+    !verifiedPhone ||
+    !checkoutPhones.some((checkoutPhone) => phone(checkoutPhone) === verifiedPhone)
   ) return empty;
 
   if (config.kind === "ORDER") {

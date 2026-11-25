@@ -5,6 +5,7 @@ query CartInput {
       phone
       customer { id }
     }
+    deliveryGroups { deliveryAddress { phone } }
     cost { subtotalAmount { amount } }
     lines {
       id
