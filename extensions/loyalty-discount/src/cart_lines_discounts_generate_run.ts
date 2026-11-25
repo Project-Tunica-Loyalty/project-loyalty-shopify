@@ -32,6 +32,7 @@ export function cartLinesDiscountsGenerateRun(
   const checkoutPhones = [
     buyer?.phone,
     ...input.cart.deliveryGroups.map((group) => group.deliveryAddress?.phone),
+    input.cart.billingAddress?.phone,
   ];
   if (
     !buyer?.isAuthenticated ||

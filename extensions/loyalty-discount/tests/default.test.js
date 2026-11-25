@@ -32,6 +32,7 @@ describe("Project Loyalty product discount", () => {
     test(`runs ${path.relative(fixturesDir, fixtureFile)}`, async () => {
       const fixture = await loadFixture(fixtureFile);
       fixture.input.cart.deliveryGroups ??= [];
+      fixture.input.cart.billingAddress ??= null;
       const targetInputQueryPath = targeting[fixture.target].inputQueryPath;
       const inputQueryAST = await loadInputQuery(targetInputQueryPath);
 

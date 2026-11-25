@@ -18,7 +18,7 @@ async function checkoutContext(request: Request) {
   const info = (await response.json()).data?.shop;
   if (!info?.id) throw new Response("Shop unavailable", { status: 503 });
   return {
-    cors, admin, customerId, shopId: String(info.id),
+    cors, admin, customerId, shopId: String(info.id), shopDomain: shop,
     compatible: Boolean(info.plan?.shopifyPlus || info.plan?.partnerDevelopment),
   };
 }
@@ -27,15 +27,21 @@ const result = (cors: (response: Response) => Response, data: unknown, status = 
   cors(Response.json(data, { status, headers: { "cache-control": "no-store" } }));
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { cors, customerId, shopId, compatible } = await checkoutContext(request);
+  const { cors, customerId, shopId, shopDomain, compatible } = await checkoutContext(request);
   try {
+    if (new URL(request.url).searchParams.get("view") === "signup")
+      return result(cors, await loyaltyApi(
+        "GET",
+        `/integrations/shopify/context?shopId=${encodeURIComponent(shopId)}&shopDomain=${encodeURIComponent(shopDomain)}`,
+      ));
     const [balance, rewards] = await Promise.all([
       loyaltyApi("GET", `/integrations/shopify/customers/me/balance${identityPath(shopId, customerId)}`),
       loyaltyApi("GET", `/integrations/shopify/rewards?shopId=${encodeURIComponent(shopId)}`),
     ]);
     return result(cors, { linked: true, compatible, balance, rewards });
   } catch (error) {
-    if (error instanceof LoyaltyApiError && error.status === 403)
+    if (error instanceof LoyaltyApiError && error.status === 403 &&
+      error.message === "Customer must link an active loyalty account")
       return result(cors, { linked: false, compatible });
     return result(cors, { error: error instanceof Error ? error.message : "Loyalty unavailable" }, 502);
   }
@@ -43,8 +49,42 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { cors, admin, customerId, shopId, compatible } = await checkoutContext(request);
-  if (!compatible) return result(cors, { error: "Checkout rewards require a Plus store" }, 403);
   const body = await request.json().catch(() => ({}));
+  const identity = { shopId, customerId };
+  const signupEndpoints: Record<string, string> = {
+    "signup-send": "otp/send",
+    "signup-resend": "otp/resend",
+    "signup-verify": "otp/verify",
+    "signup-complete": "complete",
+  };
+  if (signupEndpoints[body.action] || body.action === "send-otp" || body.action === "verify-otp") {
+    try {
+      const fields: Record<string, unknown> = { ...identity };
+      if (body.action === "signup-send" || body.action === "send-otp") {
+        fields.countryCode = String(body.countryCode ?? "");
+        fields.phoneNumber = String(body.phoneNumber ?? "");
+      }
+      if (["signup-resend", "signup-verify", "verify-otp"].includes(body.action))
+        fields.challengeId = String(body.challengeId ?? "");
+      if (body.action === "signup-verify" || body.action === "verify-otp")
+        fields.otp = String(body.otp ?? "");
+      if (body.action === "signup-complete")
+        Object.assign(fields, {
+          name: String(body.name ?? ""),
+          signupVerificationToken: String(body.signupVerificationToken ?? ""),
+          termsVersion: String(body.termsVersion ?? ""),
+          termsAccepted: body.termsAccepted === true,
+          marketingAccepted: body.marketingAccepted === true,
+        });
+      const path = signupEndpoints[body.action]
+        ? `/integrations/shopify/customers/signup/${signupEndpoints[body.action]}`
+        : `/integrations/shopify/customers/otp/${body.action === "send-otp" ? "send" : "verify"}`;
+      return result(cors, await loyaltyApi("POST", path, fields));
+    } catch (error) {
+      return result(cors, { error: error instanceof Error ? error.message : "Loyalty account request failed" }, 400);
+    }
+  }
+  if (!compatible) return result(cors, { error: "Checkout rewards require a Plus store" }, 403);
   if (body.action === "RELEASE") {
     const code = String(body.code ?? "");
     const redemptionId = String(body.redemptionId ?? "");

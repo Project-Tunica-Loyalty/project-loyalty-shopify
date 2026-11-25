@@ -2,6 +2,7 @@ import '@shopify/ui-extensions/preact';
 import {useBillingAddress, useCustomer, usePhone, useShippingAddress} from '@shopify/ui-extensions/checkout/preact';
 import {render} from 'preact';
 import {useEffect, useState} from 'preact/hooks';
+import {LoyaltyAccess} from './LoyaltyAccess.jsx';
 
 const API = 'https://shopify.reglrs.ai/checkout/loyalty';
 
@@ -18,6 +19,7 @@ function LoyaltyCheckout() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [activeCode, setActiveCode] = useState('');
+  const [refreshIndex, setRefreshIndex] = useState(0);
   const canApply = shopify.instructions.value.discounts.canUpdateDiscountCodes;
   const cartLines = shopify.lines.value;
 
@@ -38,12 +40,12 @@ function LoyaltyCheckout() {
       }
     })();
     return () => { alive = false; };
-  }, [customerId]);
+  }, [customerId, refreshIndex]);
 
-  if (!customer) return <s-banner tone="info">Log in to your customer account to use points.</s-banner>;
+  if (!customer) return <s-banner tone="info">Log in to your Shopify customer account at the top of checkout to use loyalty points.</s-banner>;
   if (!data) return <s-skeleton-paragraph />;
   if (data.error) return <s-banner tone="warning">{data.error}</s-banner>;
-  if (!data.linked) return <s-banner tone="info">Link your loyalty account in the store before using points.</s-banner>;
+  if (!data.linked) return <LoyaltyAccess onLinked={() => setRefreshIndex((value) => value + 1)} />;
 
   const available = Number(data.balance?.currentPoints ?? 0);
   const rewards = (data.rewards?.products ?? []).filter((reward) =>
