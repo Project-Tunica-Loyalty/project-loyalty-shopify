@@ -75,6 +75,33 @@ const numericFields = {
   redemptionRateTarget: "Target redemption percentage",
   milestoneMinimumPaidAmount: "Minimum purchase amount for milestones",
 };
+const programFieldGroups = [
+  {
+    title: "Earning",
+    description: "Choose how purchases earn points across the brand.",
+    keys: [
+      "pointsPerCurrencyUnit",
+      "minimumPaidAmountToEarn",
+      "maximumPointsPerPurchase",
+    ],
+  },
+  {
+    title: "Redemption",
+    description: "Set the Shopify point value and limits for using points.",
+    keys: [
+      "shopifyCurrencyPerPoint",
+      "minimumRedemptionPoints",
+      "maximumRedemptionPoints",
+      "maximumBillPercentage",
+      "redemptionRateTarget",
+    ],
+  },
+  {
+    title: "Expiry and milestones",
+    description: "Control point expiry and milestone eligibility.",
+    keys: ["pointExpiryDays", "milestoneMinimumPaidAmount"],
+  },
+] as const;
 const defaults: Version = {
   timezone: "Asia/Kolkata",
   pointsPerCurrencyUnit: 1,
@@ -890,25 +917,41 @@ export default function LoyaltyPage() {
                     version.version || loaded.program?.program?.version || 0,
                   )}
                 />
-                <div className="loyalty-fields">
-                  {Object.entries(numericFields).map(([key, label]) => (
-                    <label key={key}>
-                      {label}
-                      <input
-                        name={key}
-                        type="number"
-                        step={key === "pointExpiryDays" ? "1" : "0.000001"}
-                        min={key === "shopifyCurrencyPerPoint" ? "0.000001" : "0"}
-                        defaultValue={String(version[key] ?? "")}
-                      />
-                      {key === "shopifyCurrencyPerPoint" && (
-                        <small>
-                          Applies across this brand’s Shopify stores. For example,
-                          600 points at 0.5 give a {formatMoney(300, loaded.shop.currencyCode)} discount.
-                        </small>
-                      )}
-                    </label>
-                  ))}
+                {programFieldGroups.map((group) => (
+                  <section className="loyalty-form-section" key={group.title}>
+                    <div className="loyalty-section-heading">
+                      <h3>{group.title}</h3>
+                      <p>{group.description}</p>
+                    </div>
+                    <div className="loyalty-fields">
+                      {group.keys.map((key) => (
+                        <label key={key}>
+                          {numericFields[key]}
+                          <input
+                            name={key}
+                            type="number"
+                            step={key === "pointExpiryDays" ? "1" : "0.000001"}
+                            min={
+                              key === "shopifyCurrencyPerPoint"
+                                ? "0.000001"
+                                : "0"
+                            }
+                            defaultValue={String(version[key] ?? "")}
+                          />
+                          {key === "shopifyCurrencyPerPoint" && (
+                            <small>
+                              Applies across this brand’s Shopify stores. For
+                              example, 600 points at 0.5 give a{" "}
+                              {formatMoney(300, loaded.shop.currencyCode)}
+                              discount.
+                            </small>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+                <div className="loyalty-fields loyalty-fields-settings">
                   <label>
                     Timezone
                     <input
@@ -1075,6 +1118,7 @@ export default function LoyaltyPage() {
                   Save reward
                 </button>
               </Form>
+              <div className="loyalty-table-scroll" role="region" aria-label="Product rewards" tabIndex={0}>
               <table className="loyalty-table">
                 <thead>
                   <tr>
@@ -1109,6 +1153,7 @@ export default function LoyaltyPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </s-section>
           )}
           {loaded.view === "orders" && (
@@ -1118,7 +1163,8 @@ export default function LoyaltyPage() {
                 Open an order to inspect its items and payment and fulfillment status.
               </s-paragraph>
               {orders.length ? (
-                <table className="loyalty-table">
+                <div className="loyalty-table-scroll" role="region" aria-label="Recent Shopify orders" tabIndex={0}>
+                <table className="loyalty-table loyalty-table-orders">
                   <thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Total</th><th>Payment</th><th>Fulfillment</th><th>Items</th></tr></thead>
                   <tbody>
                     {orders.map((order) => {
@@ -1142,6 +1188,7 @@ export default function LoyaltyPage() {
                     })}
                   </tbody>
                 </table>
+                </div>
               ) : (
                 <p>No Shopify orders are available for this shop yet.</p>
               )}
@@ -1167,7 +1214,7 @@ export default function LoyaltyPage() {
                     {String(record(profile.customer).name || "Customer")}: {String(record(profile.loyaltyBalance).currentPoints ?? "—")} available points
                   </s-paragraph>
                   <h3>Orders and points for this store</h3>
-                  {transactions.length ? <table className="loyalty-table">
+                  {transactions.length ? <div className="loyalty-table-scroll" role="region" aria-label="Customer transactions" tabIndex={0}><table className="loyalty-table loyalty-table-transactions">
                     <thead><tr><th>Date</th><th>Amount</th><th>Points earned</th><th>Points used</th><th>Balance after</th><th>Items</th></tr></thead>
                     <tbody>{transactions.map((transaction) => {
                       const items = rows(transaction.items);
@@ -1180,9 +1227,10 @@ export default function LoyaltyPage() {
                         <td>{items.length ? items.map((item) => `${String(item.name)} × ${String(item.quantity)}`).join(", ") : "See Orders for Shopify item details"}</td>
                       </tr>;
                     })}</tbody>
-                  </table> : <p>No eligible purchases are linked to this customer in this store yet.</p>}
+                  </table></div> : <p>No eligible purchases are linked to this customer in this store yet.</p>}
                 </>
               ) : customers.length ? (
+                <div className="loyalty-table-scroll" role="region" aria-label="Customer profiles" tabIndex={0}>
                 <table className="loyalty-table">
                   <thead>
                     <tr>
@@ -1223,6 +1271,7 @@ export default function LoyaltyPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               ) : loaded.content ? (
                 <p>No customer profiles match this store and search.</p>
               ) : (
