@@ -65,6 +65,7 @@ const message = (error: unknown) =>
   error instanceof Error ? error.message : "The request could not be completed";
 const numericFields = {
   pointsPerCurrencyUnit: "Points earned per currency unit",
+  shopifyCurrencyPerPoint: "Value of 1 point in store currency (Shopify only)",
   minimumPaidAmountToEarn: "Minimum paid amount to earn",
   maximumPointsPerPurchase: "Maximum points per purchase",
   pointExpiryDays: "Point expiry in days",
@@ -877,8 +878,8 @@ export default function LoyaltyPage() {
           {loaded.view === "program" && (
             <s-section heading="Brand-wide earning and redemption rules">
               <s-banner heading="Applies to every brand channel">
-                Saving these rules changes the shared brand program, including
-                existing Project Loyalty channels.
+                Earning and other loyalty rules apply to every brand channel.
+                The Shopify point value below affects Shopify redemptions only.
               </s-banner>
               <Form method="post" className="loyalty-form">
                 <input type="hidden" name="intent" value="preview-program" />
@@ -897,9 +898,15 @@ export default function LoyaltyPage() {
                         name={key}
                         type="number"
                         step={key === "pointExpiryDays" ? "1" : "0.000001"}
-                        min="0"
+                        min={key === "shopifyCurrencyPerPoint" ? "0.000001" : "0"}
                         defaultValue={String(version[key] ?? "")}
                       />
+                      {key === "shopifyCurrencyPerPoint" && (
+                        <small>
+                          Applies across this brand’s Shopify stores. For example,
+                          600 points at 0.5 give a {formatMoney(300, loaded.shop.currencyCode)} discount.
+                        </small>
+                      )}
                     </label>
                   ))}
                   <label>
