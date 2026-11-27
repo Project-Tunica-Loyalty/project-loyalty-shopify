@@ -78,6 +78,10 @@ module.exports = {
 
     // Node
     {
+      files: ["extensions/loyalty-checkout/shopify.d.ts"],
+      rules: { "@typescript-eslint/ban-ts-comment": "off" },
+    },
+    {
       files: [
         ".eslintrc.cjs",
         "vite.config.{js,ts}",

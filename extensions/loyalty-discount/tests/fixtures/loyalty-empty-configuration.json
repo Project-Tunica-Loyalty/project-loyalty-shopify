@@ -21,7 +21,19 @@
               "id": "gid://shopify/ProductVariant/456"
             }
           }
-        ]
+        ],
+        "buyerIdentity": {
+          "isAuthenticated": true,
+          "phone": "+15551234567",
+          "customer": {
+            "id": "gid://shopify/Customer/123"
+          }
+        },
+        "cost": {
+          "subtotalAmount": {
+            "amount": "500.00"
+          }
+        }
       },
       "discount": {
         "discountClasses": [

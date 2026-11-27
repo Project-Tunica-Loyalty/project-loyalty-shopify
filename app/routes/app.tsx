@@ -1,9 +1,10 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Link, Outlet, useLoaderData, useRouteError } from "react-router";
+import { NavLink, Outlet, useLoaderData, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
 import { authenticate } from "../shopify.server";
+import "../styles/loyalty-admin.css";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
@@ -17,24 +18,30 @@ export default function App() {
 
   return (
     <AppProvider apiKey={apiKey}>
-      <nav
-        aria-label="Project Loyalty"
-        style={{ display: "flex", flexWrap: "wrap", gap: 16, padding: 16 }}
-      >
-        {[
-          ["overview", "Overview"],
-          ["program", "Program rules"],
-          ["customers", "Customers"],
-          ["rewards", "Rewards"],
-          ["reports", "Reports"],
-          ["settings", "Connection settings"],
-        ].map(([view, label]) => (
-          <Link key={view} to={`/app/loyalty/${view}`}>
-            {label}
-          </Link>
-        ))}
-      </nav>
-      <Outlet />
+      <div className="loyalty-app">
+        <nav className="loyalty-app-nav" aria-label="Project Loyalty">
+          {[
+            ["overview", "Overview"],
+            ["program", "Program rules"],
+            ["customers", "Customers"],
+            ["orders", "Orders"],
+            ["rewards", "Rewards"],
+            ["reports", "Reports"],
+            ["settings", "Connection settings"],
+          ].map(([view, label]) => (
+            <NavLink
+              key={view}
+              to={`/app/loyalty/${view}`}
+              className={({ isActive }) =>
+                `loyalty-app-nav-link${isActive ? " is-active" : ""}`
+              }
+            >
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+        <Outlet />
+      </div>
     </AppProvider>
   );
 }

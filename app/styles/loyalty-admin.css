@@ -1,0 +1,426 @@
+.loyalty-app {
+  --loyalty-primary: #ff5a1f;
+  --loyalty-primary-hover: #e84912;
+  --loyalty-text: #181818;
+  --loyalty-muted: #4d4354;
+  --loyalty-border: #e5e7eb;
+  --loyalty-surface: #f9f9f9;
+  color: var(--loyalty-text);
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  min-width: 0;
+}
+
+.loyalty-app-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 20px;
+  background: #fff;
+  border-bottom: 1px solid var(--loyalty-border);
+  min-width: 0;
+}
+
+.loyalty-app-nav-link {
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--loyalty-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.loyalty-app-nav-link:hover,
+.loyalty-app-nav-link.is-active {
+  border-color: #ffd8ca;
+  background: #fff4f1;
+  color: var(--loyalty-primary);
+}
+
+.loyalty-app-nav-link:focus-visible,
+.loyalty-app button:focus-visible,
+.loyalty-app input:focus-visible,
+.loyalty-app select:focus-visible {
+  outline: 2px solid var(--loyalty-primary);
+  outline-offset: 2px;
+}
+
+.loyalty-form {
+  display: grid;
+  gap: 20px;
+  width: 100%;
+  max-width: 960px;
+  min-width: 0;
+}
+
+.loyalty-form label {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  color: var(--loyalty-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.loyalty-form label small {
+  color: var(--loyalty-muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.loyalty-form input:not([type="checkbox"]):not([type="hidden"]),
+.loyalty-form select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 1px solid var(--loyalty-border);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--loyalty-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  min-width: 0;
+}
+
+.loyalty-form input:not([type="checkbox"]):not([type="hidden"]):focus,
+.loyalty-form select:focus {
+  border-color: var(--loyalty-primary);
+  box-shadow: 0 0 0 2px #ff5a1f22;
+}
+
+.loyalty-form input[type="checkbox"] {
+  accent-color: var(--loyalty-primary);
+}
+
+.loyalty-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 20px;
+  min-width: 0;
+}
+
+.loyalty-form-section {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--loyalty-border);
+  border-radius: 12px;
+  background: var(--loyalty-surface);
+}
+
+.loyalty-section-heading {
+  margin-bottom: 18px;
+}
+
+.loyalty-section-heading h3 {
+  margin: 0;
+  color: var(--loyalty-text);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.loyalty-section-heading p {
+  margin: 5px 0 0;
+  color: var(--loyalty-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.loyalty-fields-settings {
+  padding: 20px;
+  border: 1px solid var(--loyalty-border);
+  border-radius: 12px;
+}
+
+.loyalty-form fieldset {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--loyalty-border);
+  border-radius: 14px;
+  background: var(--loyalty-surface);
+}
+
+.loyalty-form fieldset fieldset {
+  background: #fff;
+}
+
+.loyalty-form button:not([class]) {
+  justify-self: start;
+}
+
+.loyalty-app button:not([class]) {
+  min-height: 36px;
+  padding: 8px 14px;
+  border: 1px solid var(--loyalty-primary);
+  border-radius: 9px;
+  background: var(--loyalty-primary);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.loyalty-app button:not([class]):hover:not(:disabled) {
+  background: var(--loyalty-primary-hover);
+}
+
+.loyalty-app button:not([class]):disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.loyalty-app button[type="button"]:not([class]),
+.loyalty-app button[value="logout"]:not([class]),
+.loyalty-app button[value="resend-mfa"]:not([class]),
+.loyalty-nav button:not([class]),
+.loyalty-table button:not([class]) {
+  border-color: var(--loyalty-border);
+  background: #fff;
+  color: var(--loyalty-text);
+}
+
+.loyalty-app button[type="button"]:not([class]):hover:not(:disabled),
+.loyalty-app button[value="logout"]:not([class]):hover:not(:disabled),
+.loyalty-app button[value="resend-mfa"]:not([class]):hover:not(:disabled),
+.loyalty-nav button:not([class]):hover:not(:disabled),
+.loyalty-table button:not([class]):hover:not(:disabled) {
+  border-color: #ffd8ca;
+  background: #fff4f1;
+  color: var(--loyalty-primary);
+}
+
+.loyalty-details {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.loyalty-details > div {
+  padding: 14px;
+  border: 1px solid var(--loyalty-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.loyalty-details dt {
+  color: var(--loyalty-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.loyalty-details dd {
+  margin: 5px 0 0;
+  color: var(--loyalty-text);
+  font-weight: 600;
+}
+
+.loyalty-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  margin-top: 16px;
+  overflow-x: auto;
+  border: 1px solid var(--loyalty-border);
+  border-radius: 12px;
+  background: #fff;
+  scrollbar-width: thin;
+}
+
+.loyalty-table-scroll:focus-visible {
+  outline: 2px solid var(--loyalty-primary);
+  outline-offset: 2px;
+}
+
+.loyalty-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.loyalty-table-orders {
+  min-width: 960px;
+}
+
+.loyalty-table-transactions {
+  min-width: 800px;
+}
+
+.loyalty-table th,
+.loyalty-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--loyalty-border);
+  text-align: left;
+}
+
+.loyalty-table th {
+  background: var(--loyalty-surface);
+  color: var(--loyalty-text);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.loyalty-table td {
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.loyalty-table tbody tr:hover {
+  background: #faf9f7;
+}
+
+.loyalty-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.loyalty-table details summary {
+  cursor: pointer;
+  color: var(--loyalty-primary);
+  font-weight: 600;
+}
+
+.loyalty-table details ul {
+  padding-left: 18px;
+  margin: 8px 0 0;
+}
+
+.loyalty-report {
+  display: grid;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.loyalty-report-freshness {
+  margin: 0;
+  color: var(--loyalty-muted);
+  font-size: 12px;
+}
+
+.loyalty-metric-grid,
+.loyalty-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.loyalty-metric,
+.loyalty-chart {
+  border: 1px solid var(--loyalty-border);
+  border-radius: 14px;
+  background: #fff;
+  padding: 18px;
+}
+
+.loyalty-metric-label,
+.loyalty-metric-description {
+  margin: 0;
+  color: var(--loyalty-muted);
+  font-size: 12px;
+}
+
+.loyalty-metric-value {
+  margin: 10px 0;
+  color: var(--loyalty-text);
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.loyalty-chart h3 {
+  margin: 0 0 16px;
+  font-size: 14px;
+}
+
+.loyalty-chart ol {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.loyalty-chart li {
+  display: grid;
+  grid-template-columns: minmax(60px, 1fr) minmax(70px, 2fr) auto;
+  align-items: center;
+  gap: 10px;
+  color: var(--loyalty-muted);
+  font-size: 12px;
+}
+
+.loyalty-chart-bar {
+  height: 7px;
+  border-radius: 99px;
+  background: #f1eeeb;
+  overflow: hidden;
+}
+
+.loyalty-chart-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--loyalty-primary);
+}
+
+.loyalty-chart strong {
+  color: var(--loyalty-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.loyalty-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+@media (max-width: 900px) {
+  .loyalty-app-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 10px 12px;
+    scrollbar-width: thin;
+  }
+
+  .loyalty-app-nav-link {
+    flex: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .loyalty-form-section,
+  .loyalty-fields-settings {
+    padding: 16px;
+  }
+
+  .loyalty-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .loyalty-metric-grid,
+  .loyalty-chart-grid,
+  .loyalty-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .loyalty-chart li {
+    grid-template-columns: minmax(70px, 1fr) minmax(60px, 2fr) auto;
+  }
+}

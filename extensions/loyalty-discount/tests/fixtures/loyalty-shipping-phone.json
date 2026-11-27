@@ -1,0 +1,42 @@
+{
+  "payload": {
+    "export": "cart-lines-discounts-generate-run",
+    "target": "cart.lines.discounts.generate.run",
+    "input": {
+      "cart": {
+        "buyerIdentity": {
+          "isAuthenticated": true,
+          "phone": null,
+          "customer": { "id": "gid://shopify/Customer/123" }
+        },
+        "deliveryGroups": [
+          { "deliveryAddress": { "phone": "+15551234567" } }
+        ],
+        "cost": { "subtotalAmount": { "amount": "200.00" } },
+        "lines": []
+      },
+      "discount": {
+        "discountClasses": ["ORDER"],
+        "metafield": {
+          "value": "{\"kind\":\"ORDER\",\"customerId\":\"gid://shopify/Customer/123\",\"verifiedPhone\":\"+15551234567\",\"amount\":\"25.00\",\"minimumSubtotal\":\"100.00\"}"
+        }
+      }
+    },
+    "output": {
+      "operations": [
+        {
+          "orderDiscountsAdd": {
+            "selectionStrategy": "FIRST",
+            "candidates": [
+              {
+                "targets": [{ "orderSubtotal": { "excludedCartLineIds": [] } }],
+                "message": "Project Loyalty points",
+                "value": { "fixedAmount": { "amount": "25.00" } }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

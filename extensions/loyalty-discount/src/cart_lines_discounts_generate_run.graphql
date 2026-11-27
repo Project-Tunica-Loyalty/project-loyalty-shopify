@@ -1,5 +1,14 @@
 query CartInput {
   cart {
+    attribute(key: "project_loyalty_redemption") { value }
+    buyerIdentity {
+      isAuthenticated
+      phone
+      customer { id }
+    }
+    deliveryGroups { deliveryAddress { phone } }
+    billingAddress { phone }
+    cost { subtotalAmount { amount } }
     lines {
       id
       quantity

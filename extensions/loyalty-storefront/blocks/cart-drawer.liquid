@@ -1,0 +1,14 @@
+<template data-loyalty-cart-drawer-template>
+  {% render 'loyalty-ui', heading: block.settings.heading, show_redeem: true %}
+</template>
+{% schema %}
+{
+  "name": "Cart drawer loyalty",
+  "target": "body",
+  "javascript": "loyalty.js",
+  "stylesheet": "loyalty.css",
+  "settings": [
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Your loyalty points" }
+  ]
+}
+{% endschema %}

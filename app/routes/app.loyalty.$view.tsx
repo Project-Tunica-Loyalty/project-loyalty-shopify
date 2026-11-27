@@ -10,6 +10,7 @@ import db from "../db.server";
 import { useState } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { merchantContext } from "../lib/shop-context.server";
+import { assertAppOrigin } from "../lib/request-origin.server";
 import {
   backendApi,
   LoyaltyApiError,
@@ -54,6 +55,7 @@ const views = [
   "overview",
   "program",
   "customers",
+  "orders",
   "rewards",
   "reports",
   "settings",
@@ -63,6 +65,7 @@ const message = (error: unknown) =>
   error instanceof Error ? error.message : "The request could not be completed";
 const numericFields = {
   pointsPerCurrencyUnit: "Points earned per currency unit",
+  shopifyCurrencyPerPoint: "Value of 1 point in store currency (Shopify only)",
   minimumPaidAmountToEarn: "Minimum paid amount to earn",
   maximumPointsPerPurchase: "Maximum points per purchase",
   pointExpiryDays: "Point expiry in days",
@@ -72,6 +75,33 @@ const numericFields = {
   redemptionRateTarget: "Target redemption percentage",
   milestoneMinimumPaidAmount: "Minimum purchase amount for milestones",
 };
+const programFieldGroups = [
+  {
+    title: "Earning",
+    description: "Choose how purchases earn points across the brand.",
+    keys: [
+      "pointsPerCurrencyUnit",
+      "minimumPaidAmountToEarn",
+      "maximumPointsPerPurchase",
+    ],
+  },
+  {
+    title: "Redemption",
+    description: "Set the Shopify point value and limits for using points.",
+    keys: [
+      "shopifyCurrencyPerPoint",
+      "minimumRedemptionPoints",
+      "maximumRedemptionPoints",
+      "maximumBillPercentage",
+      "redemptionRateTarget",
+    ],
+  },
+  {
+    title: "Expiry and milestones",
+    description: "Control point expiry and milestone eligibility.",
+    keys: ["pointExpiryDays", "milestoneMinimumPaidAmount"],
+  },
+] as const;
 const defaults: Version = {
   timezone: "Asia/Kolkata",
   pointsPerCurrencyUnit: 1,
@@ -89,6 +119,24 @@ function record(value: unknown): ObjectData {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as ObjectData)
     : {};
+}
+function formatMoney(value: unknown, currency: unknown) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "—";
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: String(currency || "USD"),
+    }).format(amount);
+  } catch {
+    return `${amount.toFixed(2)} ${String(currency || "")}`.trim();
+  }
+}
+function formatDate(value: unknown) {
+  const date = new Date(String(value || ""));
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
 }
 function rows(value: unknown): ObjectData[] {
   if (Array.isArray(value)) return value.map(record);
@@ -133,6 +181,40 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       if (ctx.connection.connected && ctx.connection.storeId) {
         const url = new URL(request.url);
         const store = encodeURIComponent(ctx.connection.storeId);
+        if (view === "orders") {
+          const after = url.searchParams.get("after");
+          if (after && after.length > 512)
+            throw new Error("Invalid order page");
+          const response = await ctx.admin.graphql(
+            `#graphql
+            query LoyaltyMerchantOrders($after: String) {
+              orders(first: 25, after: $after, sortKey: CREATED_AT, reverse: true) {
+                nodes {
+                  id name createdAt displayFinancialStatus displayFulfillmentStatus
+                  totalPriceSet { shopMoney { amount currencyCode } }
+                  customer { id displayName }
+                  lineItems(first: 20) {
+                    nodes { name quantity }
+                    pageInfo { hasNextPage }
+                  }
+                }
+                pageInfo { hasNextPage endCursor }
+              }
+            }
+          `,
+            { variables: { after } },
+          );
+          const result = (await response.json()) as {
+            data?: { orders?: unknown };
+            errors?: Array<{ message: string }>;
+          };
+          if (result.errors?.length || !result.data?.orders)
+            throw new Error(
+              result.errors?.map((item: { message: string }) => item.message).join("; ") ||
+                "Could not load Shopify orders",
+            );
+          content = result.data.orders;
+        }
         if (view === "customers") {
           const customer = url.searchParams.get("customer");
           if (customer && !/^[a-f\d-]{36}$/i.test(customer))
@@ -150,6 +232,12 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
             ctx.identity,
             "GET",
             `/brands/${ctx.connection.brandId}/shopify/rewards?shopId=${encodeURIComponent(ctx.shop.id)}`,
+          );
+        if (view === "settings")
+          content = await brandApi(
+            ctx.identity,
+            "GET",
+            `/brands/${ctx.connection.brandId}/shopify/policy`,
           );
         if (view === "reports")
           privacyRequests = await db.customerDataRequest.findMany({
@@ -202,9 +290,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const ctx = await merchantContext(request);
-  const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin)
-    throw new Response("Invalid request origin", { status: 403 });
+  assertAppOrigin(request);
   const form = await request.formData();
   const intent = String(form.get("intent") || "");
   try {
@@ -300,6 +386,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         termsUrl: String(form.get("termsUrl") || "").trim(),
         privacyUrl: String(form.get("privacyUrl") || "").trim(),
         termsVersion: String(form.get("termsVersion") || "").trim(),
+        showStorefrontBalance: form.get("showStorefrontBalance") === "on",
       });
       return data({ success: "Brand policy saved" }, { headers });
     }
@@ -324,6 +411,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         title: `${variant.product.title} / ${variant.title}`,
         pointsCost: Number(form.get("pointsCost")),
         enabled: form.get("enabled") === "on",
+        ...(form.get("updatedAt")
+          ? { updatedAt: String(form.get("updatedAt")) }
+          : {}),
       });
       return data({ success: "Reward saved" }, { headers });
     }
@@ -425,6 +515,44 @@ function Details({ value }: { value: unknown }) {
         ))}
     </dl>
   );
+}
+function ReportSummary({ value, currency }: { value: unknown; currency: string }) {
+  const report = record(value);
+  const reportData = record(report.data);
+  const metrics = rows(reportData.metrics);
+  const charts = rows(reportData.charts);
+  const meta = record(report.meta);
+  const format = (entry: ObjectData) => {
+    if (entry.value == null || !Number.isFinite(Number(entry.value))) return "—";
+    if (entry.format === "currency") return formatMoney(entry.value, currency);
+    return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(Number(entry.value))}${entry.format === "percent" ? "%" : ""}`;
+  };
+  return <div className="loyalty-report">
+    <p className="loyalty-report-freshness">{meta.dataThrough
+      ? `Data through ${formatDate(meta.dataThrough)}`
+      : "Reporting is waiting for its first successful refresh."}</p>
+    <div className="loyalty-metric-grid">
+      {metrics.map((metric) => <article className="loyalty-metric" key={String(metric.key)}>
+        <p className="loyalty-metric-label">{String(metric.title)}</p>
+        <p className="loyalty-metric-value">{format(metric)}</p>
+        {Boolean(metric.description) && <p className="loyalty-metric-description">{String(metric.description)}</p>}
+      </article>)}
+    </div>
+    <div className="loyalty-chart-grid">
+      {charts.map((chart) => {
+        const points = rows(chart.points).slice(0, 12);
+        const max = Math.max(1, ...points.map((point) => Number(point.value) || 0));
+        return <section className="loyalty-chart" key={String(chart.key)}>
+          <h3>{String(chart.title)}</h3>
+          {points.length ? <ol>{points.map((point, index) => <li key={`${String(chart.key)}-${index}`}>
+            <span>{String(point.label)}</span>
+            <span className="loyalty-chart-bar"><span style={{ width: `${Math.max(0, Math.min(100, (Number(point.value) || 0) / max * 100))}%` }} /></span>
+            <strong>{format({ value: point.value, format: chart.format })}</strong>
+          </li>)}</ol> : <p>No activity for this period.</p>}
+        </section>;
+      })}
+    </div>
+  </div>;
 }
 function Milestones({ initial }: { initial: Milestone[] }) {
   const [items, setItems] = useState(initial);
@@ -571,11 +699,16 @@ export default function LoyaltyPage() {
     title: "",
     pointsCost: "",
     enabled: true,
+    updatedAt: "",
   });
   const version = programVersion(loaded.program);
   const info = record(result);
   const error = String(info.error || loaded.error || "");
   const customers = rows(loaded.content);
+  const profile = record(loaded.content);
+  const transactions = rows(profile.transactions);
+  const orders = rows(record(loaded.content).nodes);
+  const orderPage = record(record(loaded.content).pageInfo);
   const pagination = record(record(loaded.content).pagination);
   const page = Number(pagination.page) || 1;
   const productRewards = rows(record(loaded.content).products);
@@ -585,6 +718,7 @@ export default function LoyaltyPage() {
       overview: "Overview",
       program: "Program rules",
       customers: "Customers",
+      orders: "Orders",
       rewards: "Rewards",
       reports: "Loyalty reports",
       settings: "Connection settings",
@@ -604,12 +738,12 @@ export default function LoyaltyPage() {
         ...v,
         id,
         title: `${product.title} / ${chosen.title}`,
+        updatedAt: "",
       }));
     }
   };
   return (
     <s-page heading={heading}>
-      <style>{`.loyalty-form{display:grid;gap:16px;max-width:850px}.loyalty-form label{display:grid;gap:6px}.loyalty-form input:not([type=checkbox]),.loyalty-form select{padding:10px;border:1px solid #999;border-radius:8px;max-width:100%;box-sizing:border-box}.loyalty-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}.loyalty-form fieldset{border:1px solid #ddd;padding:16px;border-radius:8px;display:grid;gap:12px}.loyalty-form button{padding:10px 14px;cursor:pointer}.loyalty-details>div{padding:8px 0;border-bottom:1px solid #eee}.loyalty-details dt{text-transform:capitalize;font-weight:600}.loyalty-details dd{margin:4px 0}.loyalty-table{width:100%;border-collapse:collapse}.loyalty-table th,.loyalty-table td{text-align:left;padding:12px;border-bottom:1px solid #ddd}.loyalty-nav{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px}`}</style>
       <s-section heading={loaded.connection.brandName || "Connect your brand"}>
         <s-paragraph>
           {loaded.shop.myshopifyDomain} · {loaded.shop.currencyCode} ·{" "}
@@ -746,6 +880,9 @@ export default function LoyaltyPage() {
                   <input name="termsVersion" required maxLength={50}
                     defaultValue={loaded.connection.termsVersion || ""} />
                 </label>
+                <label><span><input type="checkbox" name="showStorefrontBalance"
+                  defaultChecked={record(loaded.content).showStorefrontBalance !== false} />{" "}
+                  Show linked customers their points in the storefront</span></label>
                 <button disabled={busy}>Save brand policy</button>
               </Form>
               <s-paragraph>
@@ -768,8 +905,8 @@ export default function LoyaltyPage() {
           {loaded.view === "program" && (
             <s-section heading="Brand-wide earning and redemption rules">
               <s-banner heading="Applies to every brand channel">
-                Saving these rules changes the shared brand program, including
-                existing Project Loyalty channels.
+                Earning and other loyalty rules apply to every brand channel.
+                The Shopify point value below affects Shopify redemptions only.
               </s-banner>
               <Form method="post" className="loyalty-form">
                 <input type="hidden" name="intent" value="preview-program" />
@@ -780,19 +917,41 @@ export default function LoyaltyPage() {
                     version.version || loaded.program?.program?.version || 0,
                   )}
                 />
-                <div className="loyalty-fields">
-                  {Object.entries(numericFields).map(([key, label]) => (
-                    <label key={key}>
-                      {label}
-                      <input
-                        name={key}
-                        type="number"
-                        step={key === "pointExpiryDays" ? "1" : "0.000001"}
-                        min="0"
-                        defaultValue={String(version[key] ?? "")}
-                      />
-                    </label>
-                  ))}
+                {programFieldGroups.map((group) => (
+                  <section className="loyalty-form-section" key={group.title}>
+                    <div className="loyalty-section-heading">
+                      <h3>{group.title}</h3>
+                      <p>{group.description}</p>
+                    </div>
+                    <div className="loyalty-fields">
+                      {group.keys.map((key) => (
+                        <label key={key}>
+                          {numericFields[key]}
+                          <input
+                            name={key}
+                            type="number"
+                            step={key === "pointExpiryDays" ? "1" : "0.000001"}
+                            min={
+                              key === "shopifyCurrencyPerPoint"
+                                ? "0.000001"
+                                : "0"
+                            }
+                            defaultValue={String(version[key] ?? "")}
+                          />
+                          {key === "shopifyCurrencyPerPoint" && (
+                            <small>
+                              Applies across this brand’s Shopify stores. For
+                              example, 600 points at 0.5 give a{" "}
+                              {formatMoney(300, loaded.shop.currencyCode)}
+                              discount.
+                            </small>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+                <div className="loyalty-fields loyalty-fields-settings">
                   <label>
                     Timezone
                     <input
@@ -923,6 +1082,7 @@ export default function LoyaltyPage() {
               <Form method="post" className="loyalty-form">
                 <input type="hidden" name="intent" value="reward" />
                 <input type="hidden" name="variantId" value={variant.id} />
+                <input type="hidden" name="updatedAt" value={variant.updatedAt} />
                 <button type="button" onClick={() => void pick()}>
                   Choose product variant
                 </button>
@@ -958,19 +1118,22 @@ export default function LoyaltyPage() {
                   Save reward
                 </button>
               </Form>
+              <div className="loyalty-table-scroll" role="region" aria-label="Product rewards" tabIndex={0}>
               <table className="loyalty-table">
                 <thead>
                   <tr>
                     <th>Product</th>
                     <th>Points</th>
+                    <th>Status</th>
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {productRewards.map((reward) => (
                     <tr key={String(reward.id)}>
-                      <td>{String(reward.title)}</td>
+                      <td>{String(reward.title)}<br /><small>{String(reward.variantId)}</small></td>
                       <td>{String(reward.pointsCost)}</td>
+                      <td>{reward.enabled === false ? "Disabled" : "Enabled"}</td>
                       <td>
                         <button
                           onClick={() =>
@@ -979,6 +1142,7 @@ export default function LoyaltyPage() {
                               title: String(reward.title),
                               pointsCost: String(reward.pointsCost),
                               enabled: reward.enabled !== false,
+                              updatedAt: String(reward.updatedAt || ""),
                             })
                           }
                         >
@@ -989,6 +1153,50 @@ export default function LoyaltyPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
+            </s-section>
+          )}
+          {loaded.view === "orders" && (
+            <s-section heading="Recent Shopify orders">
+              <s-paragraph>
+                Orders from this shop appear here after Shopify grants order access.
+                Open an order to inspect its items and payment and fulfillment status.
+              </s-paragraph>
+              {orders.length ? (
+                <div className="loyalty-table-scroll" role="region" aria-label="Recent Shopify orders" tabIndex={0}>
+                <table className="loyalty-table loyalty-table-orders">
+                  <thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Total</th><th>Payment</th><th>Fulfillment</th><th>Items</th></tr></thead>
+                  <tbody>
+                    {orders.map((order) => {
+                      const amount = record(record(order.totalPriceSet).shopMoney);
+                      const items = rows(record(order.lineItems).nodes);
+                      const id = String(order.id || "").split("/").pop();
+                      return (
+                        <tr key={String(order.id)}>
+                          <td><s-link href={`https://${loaded.shop.myshopifyDomain}/admin/orders/${encodeURIComponent(id || "")}`} target="_blank">{String(order.name || id || "Order")}</s-link></td>
+                          <td>{formatDate(order.createdAt)}</td>
+                          <td>{String(record(order.customer).displayName || "Guest / no customer account")}</td>
+                          <td>{formatMoney(amount.amount, amount.currencyCode)}</td>
+                          <td>{String(order.displayFinancialStatus || "—").replaceAll("_", " ")}</td>
+                          <td>{String(order.displayFulfillmentStatus || "—").replaceAll("_", " ")}</td>
+                          <td><details><summary>{items.length} item{items.length === 1 ? "" : "s"}</summary>
+                            <ul>{items.map((item, index) => <li key={`${String(order.id)}-${index}`}>{String(item.name || "Item")} × {String(item.quantity || 0)}</li>)}</ul>
+                            {Boolean(record(record(order.lineItems).pageInfo).hasNextPage) && <p>Open the order in Shopify to see more items.</p>}
+                          </details></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                </div>
+              ) : (
+                <p>No Shopify orders are available for this shop yet.</p>
+              )}
+              {Boolean(orderPage.hasNextPage) && <s-link href={`?after=${encodeURIComponent(String(orderPage.endCursor))}`}>Older orders</s-link>}
+              <s-paragraph>
+                Points are recorded in the linked customer&apos;s profile after
+                an eligible order is paid and fulfilled.
+              </s-paragraph>
             </s-section>
           )}
           {loaded.view === "customers" && (
@@ -1000,7 +1208,29 @@ export default function LoyaltyPage() {
                 </label>
                 <button>Search</button>
               </Form>
-              {customers.length ? (
+              {loaded.filters.customer && loaded.content ? (
+                <>
+                  <s-paragraph>
+                    {String(record(profile.customer).name || "Customer")}: {String(record(profile.loyaltyBalance).currentPoints ?? "—")} available points
+                  </s-paragraph>
+                  <h3>Orders and points for this store</h3>
+                  {transactions.length ? <div className="loyalty-table-scroll" role="region" aria-label="Customer transactions" tabIndex={0}><table className="loyalty-table loyalty-table-transactions">
+                    <thead><tr><th>Date</th><th>Amount</th><th>Points earned</th><th>Points used</th><th>Balance after</th><th>Items</th></tr></thead>
+                    <tbody>{transactions.map((transaction) => {
+                      const items = rows(transaction.items);
+                      return <tr key={String(transaction.purchaseId)}>
+                        <td>{formatDate(transaction.date)}</td>
+                        <td>{formatMoney(transaction.billAmount, loaded.shop.currencyCode)}</td>
+                        <td>{String(transaction.credited ?? 0)}</td>
+                        <td>{String(transaction.debited ?? 0)}</td>
+                        <td>{String(transaction.balanceAfter ?? "—")}</td>
+                        <td>{items.length ? items.map((item) => `${String(item.name)} × ${String(item.quantity)}`).join(", ") : "See Orders for Shopify item details"}</td>
+                      </tr>;
+                    })}</tbody>
+                  </table></div> : <p>No eligible purchases are linked to this customer in this store yet.</p>}
+                </>
+              ) : customers.length ? (
+                <div className="loyalty-table-scroll" role="region" aria-label="Customer profiles" tabIndex={0}>
                 <table className="loyalty-table">
                   <thead>
                     <tr>
@@ -1041,8 +1271,9 @@ export default function LoyaltyPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               ) : loaded.content ? (
-                <Details value={loaded.content} />
+                <p>No customer profiles match this store and search.</p>
               ) : (
                 <p>No customers to display yet.</p>
               )}
@@ -1082,7 +1313,7 @@ export default function LoyaltyPage() {
                 <button>Update report</button>
               </Form>
               {loaded.content ? (
-                <Details value={loaded.content} />
+                <ReportSummary value={loaded.content} currency={loaded.shop.currencyCode} />
               ) : (
                 <p>Connect this store to load loyalty reporting.</p>
               )}
@@ -1096,7 +1327,7 @@ export default function LoyaltyPage() {
             <s-section heading="Customer data requests">
               <s-paragraph>
                 Download and deliver these exports to the requesting customer
-                through the brand's verified support process.
+                through the brand&apos;s verified support process.
               </s-paragraph>
               <ul>
                 {loaded.privacyRequests.map((item) => (

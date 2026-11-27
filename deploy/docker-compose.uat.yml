@@ -1,0 +1,24 @@
+services:
+  app:
+    image: loyalty-shopify:uat
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    network_mode: host
+    env_file:
+      - /opt/loyalty-shopify/.env
+    environment:
+      HOST: 127.0.0.1
+      PORT: "3030"
+      LOYALTY_BACKEND_URL: https://uat-be.reglrs.ai/api
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3030/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s

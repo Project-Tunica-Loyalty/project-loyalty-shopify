@@ -1,6 +1,10 @@
 (() => {
+  if (window.__loyaltyRefresh) {
+    window.__loyaltyRefresh();
+    return;
+  }
   const api = "/apps/loyalty";
-  document.querySelectorAll("[data-loyalty-block]").forEach((block) => {
+  const initBlocks = () => document.querySelectorAll("[data-loyalty-block]").forEach((block) => {
     if (
       block.dataset.loyaltyInitialized ||
       !block.querySelector("[data-loyalty-status]")
@@ -28,14 +32,27 @@
     };
     let signupToken = "";
     let termsVersion = "";
-    const retryKeys = new Map();
+    let availablePoints = 0;
+    const couponKey = `project-loyalty-coupon:${block.dataset.loyaltyCustomerId}`;
+    const readCoupon = () => {
+      try {
+        const coupon = JSON.parse(sessionStorage.getItem(couponKey) || "null");
+        if (coupon?.code && coupon?.cancelToken && Date.parse(coupon.expiresAt) > Date.now())
+          return coupon;
+        sessionStorage.removeItem(couponKey);
+      } catch {}
+      return null;
+    };
+    let coupon = readCoupon();
+    const showCoupon = () => {
+      const panel = find("coupon");
+      if (!panel) return;
+      panel.hidden = !coupon;
+      if (coupon) find("code").textContent = coupon.code;
+    };
     const load = async () => {
-      const [balanceResponse, rewardsResponse] = await Promise.all([
-        fetch(api, { credentials: "same-origin" }),
-        fetch(`${api}?view=rewards`, { credentials: "same-origin" }),
-      ]);
+      const balanceResponse = await fetch(api, { credentials: "same-origin" });
       const balance = await balanceResponse.json();
-      const rewards = await rewardsResponse.json();
       if (!balance.linked) {
         const contextResponse = await fetch(api + "?view=signup", {
           credentials: "same-origin",
@@ -53,65 +70,18 @@
         return;
       }
       find("link").hidden = true;
-      find("redeem").hidden = false;
       const available = balance.balance?.currentPoints ?? 0;
-      status(`${available} points available`);
-      const products = find("products");
-      products.replaceChildren();
-      for (const reward of rewards.products ?? []) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.textContent = `${reward.title} — ${reward.pointsCost} points`;
-        button.addEventListener("click", async () => {
-          try {
-            button.disabled = true;
-            const variantId = String(reward.variantId).split("/").pop();
-            const cart = await fetch("/cart.js").then((response) =>
-              response.json(),
-            );
-            if (
-              !cart.items.some((item) => String(item.variant_id) === variantId)
-            ) {
-              const added = await fetch("/cart/add.js", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ id: variantId, quantity: 1 }),
-              });
-              if (!added.ok)
-                throw new Error(
-                  "This reward product could not be added to your cart",
-                );
-            }
-            await redeem({ kind: "PRODUCT", rewardProductId: reward.id });
-          } catch (error) {
-            status(error.message);
-          } finally {
-            button.disabled = false;
-          }
-        });
-        products.append(button);
-      }
-      find("order").hidden = rewards.redemptionType !== "PARTIAL";
-    };
-    const redeem = async (values) => {
-      status("Creating your code…");
-      const request = JSON.stringify(values);
-      if (!retryKeys.has(request))
-        retryKeys.set(request, crypto.randomUUID().replaceAll("-", ""));
-      const result = await post({
-        intent: "redeem",
-        idempotencyKey: retryKeys.get(request),
-        ...values,
-      });
-      const link = document.createElement("a");
-      link.href = result.applyUrl;
-      link.textContent = `Apply code ${result.code} at checkout`;
-      find("code").replaceChildren(link);
-      status(
-        "Your code is ready. Apply it before " +
-          new Date(result.expiresAt).toLocaleTimeString() +
-          ".",
-      );
+      availablePoints = Number(available);
+      const redeem = find("redeem");
+      if (redeem && !balance.checkoutRedemptionAvailable && !coupon &&
+          Number.isFinite(availablePoints) && availablePoints > 0) {
+        redeem.hidden = false;
+        redeem.elements.points.max = String(Math.floor(availablePoints));
+      } else if (redeem) redeem.hidden = true;
+      showCoupon();
+      status(balance.balance?.showStorefrontBalance
+        ? `${available} points available`
+        : "Your loyalty account is connected.");
     };
     find("signup-send").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -124,7 +94,7 @@
         });
         find("signup-verify").dataset.challengeId = result.challengeId;
         find("signup-verify").hidden = false;
-        status("Enter the verification code sent to your phone.");
+        status("Enter the code sent to your phone.");
       } catch (error) {
         status(error.message);
       } finally {
@@ -139,7 +109,7 @@
           challengeId: find("signup-verify").dataset.challengeId,
         });
         find("signup-verify").dataset.challengeId = result.challengeId;
-        status("A new phone verification code was sent.");
+        status("A new code was sent.");
       } catch (error) {
         status(error.message);
       } finally {
@@ -214,22 +184,87 @@
         status(error.message);
       }
     });
-    find("order").addEventListener("submit", async (event) => {
+    const redeem = find("redeem");
+    redeem?.addEventListener("submit", async (event) => {
       event.preventDefault();
+      const button = redeem.querySelector("button");
+      const points = Number(new FormData(redeem).get("points"));
+      if (!Number.isInteger(points) || points < 1 || points > availablePoints) {
+        status("Enter points within your available balance.");
+        return;
+      }
+      button.disabled = true;
       try {
-        const points = Number(new FormData(event.target).get("points"));
-        const cart = await fetch("/cart.js").then((response) =>
-          response.json(),
-        );
-        await redeem({
-          kind: "ORDER",
-          points,
-          cartSubtotal: cart.total_price / 100,
-        });
+        const cartResponse = await fetch("/cart.js", { credentials: "same-origin" });
+        if (!cartResponse.ok) throw new Error("Could not read the cart");
+        const cart = await cartResponse.json();
+        if (!cart.items?.length || !cart.items_subtotal_price)
+          throw new Error("Add a product to the cart first.");
+        const cartSubtotal = cart.items_subtotal_price / 100;
+        const idempotencyKey = redeem.dataset.idempotencyKey || crypto.randomUUID().replace(/-/g, "");
+        redeem.dataset.idempotencyKey = idempotencyKey;
+        const result = await post({ intent: "redeem", points, cartSubtotal, idempotencyKey });
+        coupon = result;
+        try { sessionStorage.setItem(couponKey, JSON.stringify(coupon)); } catch {}
+        redeem.hidden = true;
+        showCoupon();
+        status("Coupon ready. Apply at checkout or cancel here.");
       } catch (error) {
         status(error.message);
+        button.disabled = false;
+      }
+    });
+    find("apply")?.addEventListener("click", () => {
+      if (!coupon) return;
+      window.location.assign(`/discount/${encodeURIComponent(coupon.code)}?redirect=/checkout`);
+    });
+    find("cancel")?.addEventListener("click", async (event) => {
+      if (!coupon) return;
+      event.target.disabled = true;
+      try {
+        await post({ intent: "cancel", cancelToken: coupon.cancelToken });
+        coupon = null;
+        try { sessionStorage.removeItem(couponKey); } catch {}
+        redeem.dataset.idempotencyKey = "";
+        showCoupon();
+        await load();
+        status("Coupon deleted. Points released.");
+      } catch (error) {
+        status(error.message);
+      } finally {
+        event.target.disabled = false;
       }
     });
     load().catch((error) => status(error.message));
   });
+
+  const mountDrawer = () => {
+    const template = document.querySelector("[data-loyalty-cart-drawer-template]");
+    if (!template?.content) return;
+    document.querySelectorAll("cart-drawer,#CartDrawer,[data-cart-drawer],.cart-drawer").forEach((drawer) => {
+      const footer = drawer.querySelector(".drawer__footer,.cart-drawer__footer,[data-cart-drawer-footer],[data-cart-footer]");
+      if (!footer || footer.parentElement?.querySelector("[data-loyalty-drawer-card]")) return;
+      const card = template.content.querySelector("[data-loyalty-block]")?.cloneNode(true);
+      if (!card) return;
+      card.dataset.loyaltyDrawerCard = "true";
+      footer.before(card);
+    });
+  };
+
+  const refresh = () => {
+    mountDrawer();
+    initBlocks();
+  };
+  window.__loyaltyRefresh = refresh;
+  let queued = false;
+  const observer = new MutationObserver(() => {
+    if (queued) return;
+    queued = true;
+    queueMicrotask(() => {
+      queued = false;
+      refresh();
+    });
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  refresh();
 })();

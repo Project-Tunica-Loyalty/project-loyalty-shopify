@@ -1,0 +1,52 @@
+<div class="project-loyalty" data-loyalty-block data-loyalty-customer-id="{% if customer %}{{ customer.id }}{% endif %}">
+  {% if customer %}
+    <h2>{{ heading | escape }}</h2>
+    <p data-loyalty-status>Loading your points…</p>
+    {% if show_redeem %}
+      <form data-loyalty-redeem hidden>
+        <label>Points to use <input name="points" type="number" min="1" step="1" inputmode="numeric" required></label>
+        <button type="submit">Create loyalty coupon</button>
+      </form>
+      <div data-loyalty-coupon hidden>
+        <p>Your loyalty coupon: <strong data-loyalty-code></strong></p>
+        <p>Apply it at checkout using the same verified phone on your delivery or billing address. If you remove the code there, return to this cart and cancel it to release your points.</p>
+        <button type="button" data-loyalty-apply>Apply at checkout</button>
+        <button type="button" data-loyalty-cancel>Cancel coupon</button>
+      </div>
+    {% endif %}
+    <div data-loyalty-link hidden>
+      <details>
+        <summary>New to our loyalty program? Join here</summary>
+        <form data-loyalty-signup-send>
+          <label>Country code <input name="countryCode" value="+91" autocomplete="tel-country-code" required></label>
+          <label>Phone number <input name="phoneNumber" type="tel" autocomplete="tel-national" required></label>
+          <button type="submit">Verify my phone</button>
+        </form>
+        <form data-loyalty-signup-verify hidden>
+          <label>Phone verification code <input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" required></label>
+          <button type="submit">Verify code</button>
+          <button type="button" data-loyalty-signup-resend>Resend code</button>
+        </form>
+        <form data-loyalty-signup-complete hidden>
+          <label>Your name <input name="name" autocomplete="name" maxlength="255" required></label>
+          <p><a data-loyalty-terms target="_blank" rel="noopener">Terms</a> and <a data-loyalty-privacy target="_blank" rel="noopener">Privacy policy</a></p>
+          <label><input type="checkbox" name="termsAccepted" required> I accept the loyalty program terms.</label>
+          <label><input type="checkbox" name="marketingAccepted"> Send me offers by SMS (optional).</label>
+          <button type="submit">Join the loyalty program</button>
+        </form>
+      </details>
+      <p>Link your Project Loyalty account with your phone number.</p>
+      <form data-loyalty-send>
+        <label>Country code <input name="countryCode" value="+91" required></label>
+        <label>Phone number <input name="phoneNumber" type="tel" required></label>
+        <button type="submit">Send code</button>
+      </form>
+      <form data-loyalty-verify hidden>
+        <label>One-time code <input name="otp" inputmode="numeric" required></label>
+        <button type="submit">Link account</button>
+      </form>
+    </div>
+  {% else %}
+    <p><a href="{{ routes.account_login_url }}">Log in</a> to use your loyalty points.</p>
+  {% endif %}
+</div>

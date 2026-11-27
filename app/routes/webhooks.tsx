@@ -4,7 +4,7 @@ import { authenticate, unauthenticated } from "../shopify.server";
 import db from "../db.server";
 import { loyaltyApi } from "../lib/loyalty-api.server";
 import { orderSnapshot } from "../lib/orders.server";
-import { deactivateDiscount } from "../lib/discounts.server";
+import { deactivateDiscount, deleteDiscount } from "../lib/discounts.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const secret = process.env.SHOPIFY_LOYALTY_SERVICE_SECRET;
@@ -37,9 +37,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let synced = 0;
   for (const session of sessions) {
     const { admin } = await unauthenticated.admin(session.shop);
-    const shopResponse = await admin.graphql(
-      `#graphql query LoyaltyShopId { shop { id } }`,
-    );
+    let shopResponse: Response;
+    try {
+      shopResponse = await admin.graphql(
+        `#graphql
+        query LoyaltyShopId { shop { id } }`,
+      );
+    } catch (error) {
+      if ((error as { response?: { code?: number } }).response?.code === 404) {
+        console.warn(`Skipping unavailable Shopify shop ${session.shop}`);
+        continue;
+      }
+      throw error;
+    }
     const shopId = (await shopResponse.json()).data?.shop?.id as
       string | undefined;
     if (!shopId) throw new Error(`Shop ID unavailable for ${session.shop}`);
@@ -48,7 +58,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       `/integrations/shopify/discounts/expired?shopId=${encodeURIComponent(shopId)}`,
     );
     for (const discount of expired) {
-      await deactivateDiscount(admin, discount.discountId);
+      if (discount.discountId.startsWith("gid://shopify/DiscountCodeNode/"))
+        await deleteDiscount(admin, discount.discountId);
+      else
+        await deactivateDiscount(admin, discount.discountId);
       await loyaltyApi("POST", "/integrations/shopify/discounts/deactivated", {
         shopId,
         discountId: discount.discountId,
@@ -108,7 +121,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const webhookId = request.headers.get("x-shopify-webhook-id");
   if (!webhookId) return new Response("Webhook ID missing", { status: 400 });
   const shopResponse = await admin.graphql(
-    `#graphql query LoyaltyShopId { shop { id } }`,
+    `#graphql
+    query LoyaltyShopId { shop { id } }`,
   );
   const shopId = (await shopResponse.json()).data?.shop?.id as
     string | undefined;

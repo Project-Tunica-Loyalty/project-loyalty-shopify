@@ -28,14 +28,26 @@
               "id": "gid://shopify/ProductVariant/456"
             }
           }
-        ]
+        ],
+        "buyerIdentity": {
+          "isAuthenticated": true,
+          "phone": "+15551234567",
+          "customer": {
+            "id": "gid://shopify/Customer/123"
+          }
+        },
+        "cost": {
+          "subtotalAmount": {
+            "amount": "500.00"
+          }
+        }
       },
       "discount": {
         "discountClasses": [
           "PRODUCT"
         ],
         "metafield": {
-          "value": "gid://shopify/ProductVariant/123"
+          "value": "{\"kind\":\"PRODUCT\",\"customerId\":\"gid://shopify/Customer/123\",\"verifiedPhone\":\"+15551234567\",\"variantId\":\"gid://shopify/ProductVariant/123\"}"
         }
       }
     },

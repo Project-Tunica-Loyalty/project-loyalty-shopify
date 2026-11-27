@@ -1,5 +1,5 @@
 {
-  "name": "lean-deal-app",
+  "name": "reglrs-loyalty-app",
   "private": true,
   "scripts": {
     "build": "react-router build",

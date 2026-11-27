@@ -8,6 +8,13 @@ COPY . .
 RUN npx prisma generate
 RUN npm run build
 
+ENV NODE_ENV=production
+ENV LOYALTY_BACKEND_URL=https://uat-be.reglrs.ai/api
+
+COPY . .
+
+RUN npm ci --include=dev && npm run build && npm prune --omit=dev && npm cache clean --force
+
 FROM node:22-alpine
 WORKDIR /app
 RUN apk add --no-cache openssl

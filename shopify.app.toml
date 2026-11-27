@@ -1,67 +1,73 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "7346dc5e7373a5489b073afa7bb14ffd"
-name = "project-loyalty"
+name = "reglrs-loyalty-app"
 application_url = "https://shopify.reglrs.ai"
 embedded = true
-
-[access_scopes]
-# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_orders,read_customers,read_products,read_discounts,write_discounts,write_app_proxy"
 
 [webhooks]
 api_version = "2026-10"
 
   [[webhooks.subscriptions]]
-  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
-  uri = "/webhooks/compliance"
+  uri = "/webhooks"
+  topics = [
+  "orders/create",
+  "orders/fulfilled",
+  "orders/updated",
+  "orders/cancelled",
+  "refunds/create",
+  "orders/paid"
+]
 
   [[webhooks.subscriptions]]
   uri = "/webhooks/app/uninstalled"
   topics = [ "app/uninstalled" ]
 
   [[webhooks.subscriptions]]
-  uri = "/webhooks/app/scopes_update"
-  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/compliance"
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
 
   [[webhooks.subscriptions]]
-  uri = "/webhooks"
-  topics = [ "orders/create", "orders/updated", "orders/paid", "orders/fulfilled", "orders/cancelled", "refunds/create" ]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
 
 [events]
 api_version = "2026-10"
 
   [[events.subscription]]
-  handle = "product-price-change"
   topic = "Product"
   actions = [ "update" ]
   triggers = [ "product.variants.price", "product.variants.compareAtPrice" ]
-  uri = "/webhooks/products/update"
+  uri = "https://shopify.reglrs.ai/webhooks/products/update"
   query = """
-  query product_variant_price_change($productId: ID!, $variantsId: ID!) {\r
-    product(id: $productId) {\r
-      id\r
-      title\r
-      status\r
-    }\r
-    productVariant(id: $variantsId) {\r
-      id\r
-      title\r
-      price\r
-      compareAtPrice\r
-    }\r
-  }\r
+  query product_variant_price_change($productId: ID!, $variantsId: ID!) {\r\r
+    product(id: $productId) {\r\r
+      id\r\r
+      title\r\r
+      status\r\r
+    }\r\r
+    productVariant(id: $variantsId) {\r\r
+      id\r\r
+      title\r\r
+      price\r\r
+      compareAtPrice\r\r
+    }\r\r
+  }\r\r
   """
   query_filter = "product.status:'ACTIVE'"
+  handle = "product-price-change"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_customers,read_discounts,read_orders,read_products,write_app_proxy,write_discounts"
 
 [auth]
 redirect_urls = [ "https://shopify.reglrs.ai/auth/callback" ]
 
 [app_proxy]
-url = "/apps/loyalty"
+url = "https://shopify.reglrs.ai/apps/loyalty"
 subpath = "loyalty"
 prefix = "apps"
 
 [build]
-include_config_on_deploy = true
-automatically_update_urls_on_dev = true
+automatically_update_urls_on_dev = false

@@ -2,13 +2,7 @@
 build
 node_modules
 .git
+.shopify
+artifacts
 .env
 .env.*
-!.env.example
-.shopify
-.react-router
-artifacts
-docs
-scripts
-**/*.test.ts
-**/*.spec.ts

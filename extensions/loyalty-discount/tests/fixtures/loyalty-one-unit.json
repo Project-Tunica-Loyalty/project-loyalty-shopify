@@ -3,25 +3,72 @@
     "export": "cart-lines-discounts-generate-run",
     "target": "cart.lines.discounts.generate.run",
     "input": {
-      "cart": { "lines": [
-        { "id": "gid://shopify/CartLine/1", "quantity": 3, "merchandise": { "__typename": "ProductVariant", "id": "gid://shopify/ProductVariant/123" } },
-        { "id": "gid://shopify/CartLine/2", "quantity": 1, "merchandise": { "__typename": "ProductVariant", "id": "gid://shopify/ProductVariant/456" } }
-      ] },
+      "cart": {
+        "lines": [
+          {
+            "id": "gid://shopify/CartLine/1",
+            "quantity": 3,
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/123"
+            }
+          },
+          {
+            "id": "gid://shopify/CartLine/2",
+            "quantity": 1,
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/456"
+            }
+          }
+        ],
+        "buyerIdentity": {
+          "isAuthenticated": true,
+          "phone": "+15551234567",
+          "customer": {
+            "id": "gid://shopify/Customer/123"
+          }
+        },
+        "cost": {
+          "subtotalAmount": {
+            "amount": "500.00"
+          }
+        }
+      },
       "discount": {
-        "discountClasses": ["PRODUCT"],
-        "metafield": { "value": "gid://shopify/ProductVariant/123" }
+        "discountClasses": [
+          "PRODUCT"
+        ],
+        "metafield": {
+          "value": "{\"kind\":\"PRODUCT\",\"customerId\":\"gid://shopify/Customer/123\",\"verifiedPhone\":\"+15551234567\",\"variantId\":\"gid://shopify/ProductVariant/123\"}"
+        }
       }
     },
     "output": {
       "operations": [
-        { "productDiscountsAdd": {
-          "selectionStrategy": "FIRST",
-          "candidates": [
-            { "targets": [{ "cartLine": { "id": "gid://shopify/CartLine/1", "quantity": 1 } }],
-              "message": "Project Loyalty product reward",
-              "value": { "percentage": { "value": "100.0" } } }
-          ]
-        } }
+        {
+          "productDiscountsAdd": {
+            "selectionStrategy": "FIRST",
+            "candidates": [
+              {
+                "targets": [
+                  {
+                    "cartLine": {
+                      "id": "gid://shopify/CartLine/1",
+                      "quantity": 1
+                    }
+                  }
+                ],
+                "message": "Project Loyalty product reward",
+                "value": {
+                  "percentage": {
+                    "value": "100.0"
+                  }
+                }
+              }
+            ]
+          }
+        }
       ]
     }
   }
